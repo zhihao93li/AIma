@@ -13,17 +13,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="zh-CN">
       <body className={inter.className}>
         <AuthProvider>
-          <div className="flex min-h-screen flex-col">
-            <Navbar />
-            <main className="flex-1">{children}</main>
-          </div>
+          <Navbar />
+          {children}
         </AuthProvider>
       </body>
     </html>

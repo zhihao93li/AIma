@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
+import { ShareDialog } from '@/components/share-dialog';
+import { Toaster } from '@/components/ui/toaster';
 
 // 定义消息类型
 type Message = {
@@ -95,6 +97,7 @@ export default function Home() {
 
   return (
     <div className="container mx-auto p-4 min-h-screen flex flex-col">
+      <Toaster />
       <Card className="max-w-2xl mx-auto w-full flex-1 flex flex-col">
         <CardHeader>
           <CardTitle>创意骂人生成器</CardTitle>
@@ -124,7 +127,14 @@ export default function Home() {
                         <span className="ml-2">思考中...</span>
                       </div>
                     ) : (
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      <div>
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        {message.role === 'assistant' && message.content && (
+                          <div className="mt-2 flex justify-end">
+                            <ShareDialog content={message.content} onShare={() => {}} />
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

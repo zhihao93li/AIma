@@ -1,3 +1,5 @@
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 // 这里应该使用环境变量存储API密钥
@@ -14,6 +16,42 @@ function moderateContent(text: string): boolean {
 
 export async function POST(request: Request) {
   try {
+    // 创建Supabase客户端
+    const supabase = createRouteHandlerClient({ cookies });
+    
+    // 获取当前用户
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: '未授权，请先登录', success: false },
+        { status: 401 }
+      );
+    }
+    
+    // 获取用户资料和积分余额
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('points')
+      .eq('id', user.id)
+      .single();
+    
+    if (profileError) {
+      console.error('Error fetching user profile:', profileError);
+      return NextResponse.json(
+        { error: '获取用户资料失败', success: false },
+        { status: 500 }
+      );
+    }
+    
+    // 检查积分是否足够
+    if (profile.points < 10) {
+      return NextResponse.json(
+        { error: '积分不足，请获取更多积分后再试', success: false },
+        { status: 403 }
+      );
+    }
+    
     const { messages } = await request.json();
     // 获取最新的用户消息作为当前prompt
     const prompt = messages && messages.length > 0 
@@ -23,14 +61,14 @@ export async function POST(request: Request) {
     // 输入内容审核
     if (!moderateContent(prompt)) {
       return NextResponse.json(
-        { error: '输入内容包含敏感词，请调整后重试。' },
+        { error: '输入内容包含敏感词，请调整后重试。', success: false },
         { status: 400 }
       );
     }
 
     if (!DEEPSEEK_API_KEY) {
       return NextResponse.json(
-        { error: 'API密钥未配置' },
+        { error: 'API密钥未配置', success: false },
         { status: 500 }
       );
     }
@@ -74,16 +112,45 @@ export async function POST(request: Request) {
     // 生成内容的审核
     if (!moderateContent(generatedText)) {
       return NextResponse.json(
-        { error: '生成的内容不符合社区规范，请重试。' },
+        { error: '生成的内容不符合社区规范，请重试。', success: false },
         { status: 400 }
       );
     }
+    
+    // 使用事务函数处理积分扣除、交易记录和生成记录
+    const { data: generationResult, error: generationError } = await supabase
+      .rpc('handle_content_generation', {
+        p_user_id: user.id,
+        p_target: prompt,
+        p_result: generatedText,
+        p_points_consumed: 10
+      });
+    
+    if (generationError) {
+      console.error('Error in content generation transaction:', generationError);
+      return NextResponse.json(
+        { error: '处理生成内容失败', success: false },
+        { status: 500 }
+      );
+    }
+    
+    // 检查事务处理结果
+    if (!generationResult.success) {
+      return NextResponse.json(
+        { error: generationResult.error || '处理生成内容失败', success: false },
+        { status: 403 }
+      );
+    }
 
-    return NextResponse.json({ result: generatedText });
+    return NextResponse.json({ 
+      result: generatedText,
+      points: profile.points - 10,
+      success: true 
+    });
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { error: '服务器处理请求时出错，请稍后重试。' },
+      { error: '服务器处理请求时出错，请稍后重试。', success: false },
       { status: 500 }
     );
   }

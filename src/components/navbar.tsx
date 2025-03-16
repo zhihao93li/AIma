@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function Navbar() {
   const { user, profile, isLoading, signInWithGoogle, signOut } = useAuth();
@@ -21,6 +23,27 @@ export function Navbar() {
             <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
           ) : user ? (
             <div className="flex items-center gap-4">
+              {/* 显示用户积分 */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="px-3 py-1">
+                      <span className="mr-1">💰</span>
+                      <span>{profile?.points || 0}</span>
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>当前积分余额</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              {/* 添加分享按钮 */}
+              <Link href="/profile?tab=share" className="flex items-center gap-1 text-sm px-3 py-1 border rounded-md hover:bg-muted transition-colors">
+                <span className="mr-1">🔗</span>
+                <span>分享</span>
+              </Link>
+              
               <Link href="/profile">
                 <Avatar>
                   <AvatarImage src={profile?.avatar_url || ''} alt={profile?.name || '用户'} />
@@ -40,4 +63,4 @@ export function Navbar() {
       </div>
     </nav>
   );
-} 
+}
