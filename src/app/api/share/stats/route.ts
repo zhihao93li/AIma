@@ -31,7 +31,8 @@ export async function GET() {
     }
     
     // 生成用户的分享链接
-    const shareLink = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://aima.example.com'}?ref=${user.id}`;
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || 'https://aima.vercel.app';
+    const shareLink = `${origin}?ref=${user.id}`;
     
     // 返回分享统计数据
     return NextResponse.json({

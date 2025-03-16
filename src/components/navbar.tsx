@@ -11,7 +11,7 @@ export function Navbar() {
   const { user, profile, isLoading, signInWithGoogle, signOut } = useAuth();
 
   return (
-    <nav className="border-b bg-background">
+    <nav className="border-b bg-background fixed top-0 left-0 right-0 z-50 w-full">
       <div className="container flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-6 md:gap-10">
           <Link href="/" className="flex items-center space-x-2">

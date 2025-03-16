@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 import { ShareDialog } from '@/components/share-dialog';
 import { Toaster } from '@/components/ui/toaster';
+import { useAuth } from '@/lib/auth-context';
 
 // 定义消息类型
 type Message = {
@@ -21,6 +22,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentAssistantMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { updatePoints } = useAuth();
   
   // 自动滚动到最新消息
   useEffect(() => {
@@ -72,6 +74,11 @@ export default function Home() {
         newMessages.pop(); // 移除加载中的消息
         return [...newMessages, { role: 'assistant', content: data.result }];
       });
+      
+      // 更新用户积分显示
+      if (data.points !== undefined) {
+        updatePoints(data.points);
+      }
     } catch (error) {
       console.error('Error:', error);
       // 更新消息历史，将加载中的消息替换为错误消息
@@ -96,18 +103,18 @@ export default function Home() {
   };
 
   return (
-    <div className="container mx-auto p-4 min-h-screen flex flex-col">
+    <div className="container mx-auto p-4 h-screen flex flex-col">
       <Toaster />
-      <Card className="max-w-2xl mx-auto w-full flex-1 flex flex-col">
-        <CardHeader>
+      <Card className="max-w-2xl mx-auto w-full h-full flex flex-col overflow-hidden">
+        <CardHeader className="flex-shrink-0">
           <CardTitle>创意骂人生成器</CardTitle>
           <CardDescription>
             与AI对话，让它为您生成极具创意的嘲讽内容
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex-1 flex flex-col">
+        <CardContent className="flex-1 flex flex-col overflow-hidden">
           {/* 消息历史区域 */}
-          <div className="flex-1 overflow-y-auto mb-4 space-y-4 max-h-[60vh]">
+          <div className="flex-1 overflow-y-auto mb-4 space-y-4">
             {messages.length === 0 ? (
               <div className="text-center text-gray-500 py-8">
                 <p>开始一个新对话吧！</p>

@@ -11,6 +11,7 @@ type AuthContextType = {
   isLoading: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  updatePoints: (newPoints: number) => void;
 };
 
 // 创建认证上下文
@@ -21,6 +22,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // 更新用户积分的方法
+  const updatePoints = (newPoints: number) => {
+    if (profile) {
+      setProfile({ ...profile, points: newPoints });
+    }
+  };
 
   // 初始化时检查用户登录状态
   useEffect(() => {
@@ -106,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         signInWithGoogle,
         signOut,
+        updatePoints,
       }}
     >
       {children}
@@ -120,4 +129,4 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-} 
+}

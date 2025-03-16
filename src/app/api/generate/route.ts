@@ -142,9 +142,12 @@ export async function POST(request: Request) {
       );
     }
 
+    // 计算更新后的积分值
+    const updatedPoints = profile.points - 10;
+    
     return NextResponse.json({ 
       result: generatedText,
-      points: profile.points - 10,
+      points: updatedPoints,
       success: true 
     });
   } catch (error) {
