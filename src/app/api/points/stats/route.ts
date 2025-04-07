@@ -34,7 +34,10 @@ export async function GET() {
     
     // 获取积分交易统计
     const { data: stats, error: statsError } = await supabase
-      .rpc('get_point_stats', { user_id: user.id });
+      .from('point_transactions')
+      .select('type, amount', { count: 'exact' })
+      .eq('user_id', user.id)
+      .group('type');
     
     if (statsError) {
       console.error('Error fetching point stats:', statsError);

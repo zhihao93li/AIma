@@ -4,8 +4,9 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   try {
-    // 创建Supabase客户端
-    const supabase = createRouteHandlerClient({ cookies });
+    // 创建Supabase客户端 - 确保正确使用await cookies()
+    const cookieStore = cookies();
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
     
     // 获取当前用户
     const { data: { user } } = await supabase.auth.getUser();

@@ -80,8 +80,18 @@ export function PointsHistory() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>积分历史</CardTitle>
-        <CardDescription>查看您的积分变动记录</CardDescription>
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle>积分历史</CardTitle>
+            <CardDescription>查看您的积分变动记录</CardDescription>
+          </div>
+          <Button 
+            onClick={() => window.location.href = '/buy-points'}
+            className="bg-blue-500 hover:bg-blue-600"
+          >
+            购买积分
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
