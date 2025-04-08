@@ -124,15 +124,24 @@ export async function POST(request: Request) {
       
       // 在后台启动生成过程（不阻塞响应）
       // 为确保即使在Vercel环境中也能正常工作，将处理函数包装在Promise.resolve().then中
-      Promise.resolve().then(async () => {
+      console.log('准备启动后台处理，任务ID:', generationTask.id);
+      
+      // 使用直接的异步函数调用，而不是Promise.resolve().then
+      (async () => {
         try {
           console.log('开始后台处理任务，ID:', generationTask.id);
           // 立即更新状态为processing
-          await supabase
+          const { error: updateError } = await supabase
             .from('generation_tasks')
             .update({ status: 'processing' })
             .eq('id', generationTask.id);
             
+          if (updateError) {
+            console.error('更新任务状态为processing失败:', updateError);
+            throw new Error('更新任务状态失败: ' + updateError.message);
+          }
+          
+          console.log('任务状态已更新为processing，开始生成内容');
           await generateContentInBackground(supabase, generationTask.id, profile.points, user.id, messages || [{role: 'user', content: prompt}]);
           console.log('后台任务处理完成，ID:', generationTask.id);
         } catch (error) {
@@ -147,7 +156,7 @@ export async function POST(request: Request) {
             })
             .eq('id', generationTask.id);
         }
-      });
+      })();
       
       // 立即向客户端返回任务ID
       return jsonResponse({
@@ -182,6 +191,7 @@ async function generateContentInBackground(
   messages: Array<{role: string, content: string}>
 ) {
   try {
+    console.log('generateContentInBackground 函数开始执行，任务ID:', taskId);
     // 准备请求参数
     const requestBody = {
       model: 'deepseek-reasoner',
@@ -200,7 +210,8 @@ async function generateContentInBackground(
       frequency_penalty: 0.5
     };
     
-    console.log('开始异步请求DeepSeek API, 任务ID:', taskId);
+    console.log('开始异步请求DeepSeek API, 任务ID:', taskId, 'API URL:', DEEPSEEK_API_URL);
+    console.log('API Key设置状态:', DEEPSEEK_API_KEY ? '已设置' : '未设置');
     const startTime = Date.now();
     
     // 设置超时控制
@@ -248,6 +259,7 @@ async function generateContentInBackground(
         }
         
         // 更新任务状态为失败
+        console.log('API响应失败，更新任务状态为failed，错误信息:', errorMessage);
         await supabase
           .from('generation_tasks')
           .update({ 
@@ -286,6 +298,7 @@ async function generateContentInBackground(
       // 生成内容的审核
       if (!moderateContent(generatedText)) {
         // 更新任务状态为审核失败
+        console.log('生成内容未通过审核，更新任务状态为failed');
         await supabase
           .from('generation_tasks')
           .update({ 
@@ -300,6 +313,11 @@ async function generateContentInBackground(
       
       console.log('开始数据库事务处理, 任务ID:', taskId);
       // 使用事务函数处理积分扣除、交易记录和生成记录
+      console.log('调用handle_content_generation RPC函数, 参数:', {
+        p_user_id: userId,
+        p_points_consumed: 10
+      });
+      
       const { data: generationResult, error: generationError } = await supabase
         .rpc('handle_content_generation', {
           p_user_id: userId,
@@ -310,13 +328,16 @@ async function generateContentInBackground(
       
       if (generationError) {
         console.error('Error in content generation transaction:', generationError);
+        console.error('Transaction error code:', generationError.code);
+        console.error('Transaction error message:', generationError.message);
+        console.error('Transaction error details:', generationError.details);
         
         // 更新任务状态为失败
         await supabase
           .from('generation_tasks')
           .update({ 
             status: 'failed',
-            error: '处理生成内容失败',
+            error: '处理生成内容失败: ' + generationError.message,
             completed_at: new Date().toISOString()
           })
           .eq('id', taskId);
@@ -325,8 +346,10 @@ async function generateContentInBackground(
       }
       
       // 检查事务处理结果
+      console.log('事务处理结果:', generationResult);
       if (!generationResult.success) {
         // 更新任务状态为失败
+        console.log('事务处理返回失败，错误信息:', generationResult.error);
         await supabase
           .from('generation_tasks')
           .update({ 
@@ -343,7 +366,7 @@ async function generateContentInBackground(
       const updatedPoints = currentPoints - 10;
       console.log('内容生成成功，用户新积分:', updatedPoints, '任务ID:', taskId);
       
-      await supabase
+      const { error: updateError } = await supabase
         .from('generation_tasks')
         .update({ 
           status: 'completed',
@@ -353,6 +376,12 @@ async function generateContentInBackground(
           completed_at: new Date().toISOString()
         })
         .eq('id', taskId);
+        
+      if (updateError) {
+        console.error('更新任务为完成状态失败:', updateError);
+      } else {
+        console.log('任务已成功完成并更新, 任务ID:', taskId);
+      }
       
     } catch (error: unknown) {
       // 清除超时器

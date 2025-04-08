@@ -83,4 +83,10 @@ BEGIN
       RETURN json_build_object('success', v_success, 'error', v_error);
   END;
 END;
-$$ LANGUAGE plpgsql; 
+$$ LANGUAGE plpgsql;
+
+-- 添加允许用户插入自己任务的策略
+CREATE POLICY "Users can insert their own tasks" 
+  ON public.generation_tasks 
+  FOR INSERT 
+  WITH CHECK (auth.uid() = user_id); 
