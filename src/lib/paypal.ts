@@ -30,6 +30,7 @@ export const pointsPackages = [
 export async function createPayPalOrder({
   packageId,
   currency = 'USD',
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   userId, /* 用于记录订单关联的用户，在数据库中存储订单时使用，在API调用中需要传递此参数 */
 }: {
   packageId: string;
