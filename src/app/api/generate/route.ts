@@ -94,41 +94,53 @@ export async function POST(request: Request) {
     }
 
     // 创建一个生成任务记录
-    const { data: generationTask, error: taskError } = await supabase
-      .from('generation_tasks')
-      .insert({
-        user_id: user.id,
-        prompt: prompt,
-        status: 'pending',
-        messages: messages || [{role: 'user', content: prompt}]
-      })
-      .select()
-      .single();
-    
-    if (taskError) {
-      console.error('创建生成任务失败:', taskError);
+    try {
+      console.log('开始创建生成任务, 用户ID:', user.id);
+      const { data: generationTask, error: taskError } = await supabase
+        .from('generation_tasks')
+        .insert({
+          user_id: user.id,
+          prompt: prompt,
+          status: 'pending',
+          messages: messages || [{role: 'user', content: prompt}]
+        })
+        .select()
+        .single();
+      
+      if (taskError) {
+        console.error('创建生成任务失败, 详细错误:', taskError);
+        console.error('错误代码:', taskError.code);
+        console.error('错误信息:', taskError.message);
+        console.error('错误详情:', taskError.details);
+        return jsonResponse(
+          { error: '创建生成任务失败: ' + taskError.message, success: false },
+          500
+        );
+      }
+      
+      // 立即返回任务ID给前端，不等待生成完成
+      // 这样可以避免请求超时，客户端将通过轮询获取结果
+      console.log('生成任务已创建，ID:', generationTask.id);
+      
+      // 在后台启动生成过程（不阻塞响应）
+      generateContentInBackground(supabase, generationTask.id, profile.points, user.id, messages || [{role: 'user', content: prompt}])
+        .catch(error => {
+          console.error('后台生成内容失败:', error);
+        });
+      
+      // 立即向客户端返回任务ID
+      return jsonResponse({
+        taskId: generationTask.id,
+        message: '生成请求已接收，请使用提供的任务ID查询结果',
+        success: true
+      });
+    } catch (insertError) {
+      console.error('插入任务记录时出现异常:', insertError);
       return jsonResponse(
-        { error: '创建生成任务失败', success: false },
+        { error: '创建生成任务失败: ' + (insertError instanceof Error ? insertError.message : String(insertError)), success: false },
         500
       );
     }
-    
-    // 立即返回任务ID给前端，不等待生成完成
-    // 这样可以避免请求超时，客户端将通过轮询获取结果
-    console.log('生成任务已创建，ID:', generationTask.id);
-    
-    // 在后台启动生成过程（不阻塞响应）
-    generateContentInBackground(supabase, generationTask.id, profile.points, user.id, messages || [{role: 'user', content: prompt}])
-      .catch(error => {
-        console.error('后台生成内容失败:', error);
-      });
-    
-    // 立即向客户端返回任务ID
-    return jsonResponse({
-      taskId: generationTask.id,
-      message: '生成请求已接收，请使用提供的任务ID查询结果',
-      success: true
-    });
     
   } catch (error: unknown) {
     console.error('API Error:', error instanceof Error ? error.stack : error);
