@@ -11,11 +11,8 @@ const nextConfig = {
     DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
     DEEPSEEK_MODEL: process.env.DEEPSEEK_MODEL,
   },
-  // 增加超时限制，避免大型依赖构建超时
-  experimental: {
-    serverComponentsExternalPackages: ['openai'],
-    outputFileTracingTimeout: 60000 // 60秒
-  }
+  // 指定外部服务器组件包
+  serverExternalPackages: ['openai'],
 };
 
 module.exports = nextConfig; 
