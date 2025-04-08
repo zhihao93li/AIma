@@ -1,5 +1,6 @@
 // PayPal配置和工具函数
 import { createClient } from './supabase/server';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 // 积分套餐定义
 export const pointsPackages = [
@@ -79,10 +80,16 @@ export async function processPayPalPayment({
   pointsToAdd: number;
   amount: number;
   currency: string;
-  supabase?: ReturnType<typeof createClient>; // 可选参数，允许传入supabase客户端
+  supabase?: SupabaseClient; // 明确指定为SupabaseClient类型，不是Promise
 }) {
   // 如果没有传入supabase客户端，则创建一个
-  const supabaseClient = supabase || createClient();
+  let supabaseClient: SupabaseClient;
+  
+  if (supabase) {
+    supabaseClient = supabase;
+  } else {
+    supabaseClient = await createClient();
+  }
 
   // 开始数据库事务
   let payment;
