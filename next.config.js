@@ -1,11 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   webpack: (config) => {
-    // 强制将openai作为客户端包处理，确保它被正确打包
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      'openai': require.resolve('openai'),
-    };
+    // 不再使用require.resolve('openai')，改为只添加优先解析提示
+    config.resolve.preferRelative = true;
     
     return config;
   },
