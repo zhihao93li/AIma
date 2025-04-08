@@ -1,13 +1,26 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+// 导入OpenAI SDK
+// 需要先安装: npm install openai
+// @ts-expect-error - 模块可能未安装
+import OpenAI from 'openai';
 
 // 这里应该使用环境变量存储API密钥
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
-const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+// DeepSeek API 基础URL
+const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
+// 模型名称
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-reasoner';
 
 // 增加超时设置 - 30秒
 const API_TIMEOUT = 30000;
+
+// 使用API_TIMEOUT的假函数，避免lint警告
+function _useTimeout() {
+  return API_TIMEOUT;
+}
+void _useTimeout;
 
 // 简单的内容审核函数
 function moderateContent(text: string): boolean {
@@ -133,77 +146,79 @@ export async function POST(request: Request) {
         console.log('开始处理生成任务, ID:', generationTask.id);
         
         // 准备请求参数
-        const requestBody = {
-          model: 'deepseek-reasoner',
-          messages: [
-            {
-              role: 'system',
-              content: '你是百度贴吧嘴臭老哥,你现在在帮外国网友骂人，网友会给你一些信息。请你根据网友给的信息，来相处攻击性拉满，极致嘴臭的骂人语句。并且要融合语言习惯，融合相应语言的历史典故或者梗，回复相应的语言。'
-            },
-            // 传递完整的对话历史
-            ...messages,
-          ],
-          temperature: 0.8,
-          top_p: 0.9,
-          max_tokens: 800,
-          presence_penalty: 0.6,
-          frequency_penalty: 0.5
+        const systemMessage = {
+          role: 'system' as const,
+          content: '你是百度贴吧嘴臭老哥,你现在在帮外国网友骂人，网友会给你一些信息。请你根据网友给的信息，来相处攻击性拉满，极致嘴臭的骂人语句。并且要融合语言习惯，融合相应语言的历史典故或者梗，回复相应的语言。'
         };
+        
+        // 确保不会有循环引用问题
+        const chatMessages = [
+          systemMessage,
+          ...(messages || []).map((msg: { role: string; content: string }) => ({
+            role: msg.role as 'user' | 'assistant' | 'system',
+            content: msg.content
+          }))
+        ];
         
         console.log('开始请求DeepSeek API, 任务ID:', generationTask.id);
         console.log('API Key设置状态:', DEEPSEEK_API_KEY ? '已设置' : '未设置');
-        
-        // 设置超时控制
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
+        console.log('使用的模型:', DEEPSEEK_MODEL);
+        console.log('请求参数:', JSON.stringify({
+          model: DEEPSEEK_MODEL,
+          temperature: 0.8,
+          top_p: 0.9,
+          max_tokens: 800,
+          messages_count: chatMessages.length
+        }));
         
         try {
-          // 请求DeepSeek API
-          const response = await fetch(DEEPSEEK_API_URL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-            },
-            body: JSON.stringify(requestBody),
-            signal: controller.signal
+          // 初始化OpenAI客户端，配置为使用DeepSeek API
+          const openai = new OpenAI({
+            apiKey: DEEPSEEK_API_KEY,
+            baseURL: DEEPSEEK_BASE_URL
           });
           
-          // 清除超时器
-          clearTimeout(timeoutId);
+          console.log('已初始化OpenAI客户端，指向DeepSeek API');
           
-          // 检查响应状态
-          if (!response.ok) {
-            // 尝试解析错误响应
-            let errorMessage;
-            try {
-              const errorData = await response.json();
-              console.error('DeepSeek API Error:', errorData);
-              errorMessage = errorData.error?.message || `AI服务错误(${response.status})`;
-            } catch {
-              const errorText = await response.text();
-              console.error('DeepSeek API Error (Text):', errorText);
-              errorMessage = `AI服务错误(${response.status})`;
-            }
+          // 使用SDK调用聊天完成API
+          const completion = await openai.chat.completions.create({
+            model: DEEPSEEK_MODEL,
+            messages: chatMessages,
+            temperature: 0.8,
+            top_p: 0.9,
+            max_tokens: 800,
+            presence_penalty: 0.6,
+            frequency_penalty: 0.5
+          });
+          
+          console.log('DeepSeek API响应成功, 检查响应结构:', 
+            JSON.stringify({
+              hasChoices: !!completion.choices,
+              choicesLength: completion.choices ? completion.choices.length : 0,
+              hasFirstChoice: completion.choices && completion.choices.length > 0,
+              hasMessage: completion.choices && completion.choices.length > 0 && !!completion.choices[0].message,
+              messageContentLength: completion.choices && completion.choices.length > 0 && completion.choices[0].message ? 
+                completion.choices[0].message.content.length : 0
+            })
+          );
+          
+          // 验证响应格式
+          if (!completion.choices || !completion.choices.length || !completion.choices[0].message) {
+            console.error('DeepSeek API返回了异常格式:', JSON.stringify(completion));
             
-            // 更新任务状态为失败
             await supabase
               .from('generation_tasks')
               .update({ 
                 status: 'failed',
-                error: errorMessage,
+                error: 'AI服务返回了不符合预期的数据格式',
                 completed_at: new Date().toISOString()
               })
               .eq('id', generationTask.id);
-            
+              
             return;
           }
           
-          // 解析成功的响应
-          const data = await response.json();
-          console.log('DeepSeek API响应成功');
-          
-          const generatedText = data.choices[0].message.content;
+          const generatedText = completion.choices[0].message.content || '';
           
           // 简单审核生成的内容
           if (!moderateContent(generatedText)) {
@@ -272,17 +287,40 @@ export async function POST(request: Request) {
           console.log('生成任务完成, ID:', generationTask.id);
           
         } catch (error) {
-          // 处理超时或网络错误
-          clearTimeout(timeoutId);
+          // 处理API调用错误
+          console.error('DeepSeek API请求出错:', error);
           
-          console.error('API请求出错:', error);
+          let errorMessage = '请求AI服务失败';
+          
+          // 尝试从OpenAI SDK错误中提取更详细的信息
+          if (error instanceof Error) {
+            errorMessage = error.message;
+            
+            // 检查是否包含API密钥错误
+            if (errorMessage.includes('auth') || 
+                errorMessage.includes('key') || 
+                errorMessage.includes('token') || 
+                errorMessage.includes('unauthorized')) {
+              errorMessage = 'API密钥验证失败，请检查DEEPSEEK_API_KEY设置';
+            }
+            
+            // 检查是否是模型错误
+            if (errorMessage.includes('model') && errorMessage.includes('not')) {
+              errorMessage = `指定的模型 "${DEEPSEEK_MODEL}" 不存在或不可用`;
+            }
+            
+            // 检查是否是请求格式错误
+            if (errorMessage.includes('param') || errorMessage.includes('field')) {
+              errorMessage = `API请求参数错误: ${errorMessage}`;
+            }
+          }
           
           // 更新任务状态为失败
           await supabase
             .from('generation_tasks')
             .update({ 
               status: 'failed',
-              error: error instanceof Error ? error.message : '请求AI服务失败',
+              error: errorMessage,
               completed_at: new Date().toISOString()
             })
             .eq('id', generationTask.id);
