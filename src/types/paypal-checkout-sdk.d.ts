@@ -16,6 +16,19 @@ declare module '@paypal/checkout-server-sdk' {
   }
   
   namespace orders {
+    // 定义订单响应接口
+    interface OrderResponse {
+      id: string;
+      status: string;
+      links?: Array<{
+        href: string;
+        rel: string;
+        method: string;
+      }>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      [key: string]: any;
+    }
+    
     class OrdersCreateRequest {
       prefer(preference: string): void;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

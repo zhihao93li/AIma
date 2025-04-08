@@ -1,6 +1,5 @@
 // PayPal服务端SDK工具函数
 // 使用类型导入语法确保TypeScript能正确识别类型
-// @ts-expect-error - 忽略缺少类型声明的问题，我们已经在 src/types 中提供了自定义声明
 import * as checkoutNodeJssdk from '@paypal/checkout-server-sdk';
 
 // 创建PayPal环境
@@ -81,7 +80,7 @@ export async function createOrder(value: string, currency: string, description: 
   
   try {
     console.log('正在创建PayPal订单，请求体:', JSON.stringify(requestBody));
-    const response = await client.execute(request);
+    const response = await client.execute<checkoutNodeJssdk.orders.OrderResponse>(request);
     console.log('PayPal订单创建成功，订单ID:', response.result.id);
     return response.result;
   } catch (err) {
@@ -98,7 +97,7 @@ export async function captureOrder(orderId: string): Promise<checkoutNodeJssdk.o
   request.prefer('return=representation');
   
   try {
-    const response = await client.execute(request);
+    const response = await client.execute<checkoutNodeJssdk.orders.OrderResponse>(request);
     return response.result;
   } catch (e) {
     console.error('捕获PayPal订单支付失败:', e);
