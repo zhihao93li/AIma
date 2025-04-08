@@ -103,18 +103,18 @@ export default function Home() {
   };
 
   return (
-    <div className="container mx-auto p-4 h-screen flex flex-col">
+    <div className="flex flex-col h-[calc(100vh-5rem)] max-w-3xl mx-auto px-4">
       <Toaster />
-      <Card className="max-w-2xl mx-auto w-full h-full flex flex-col overflow-hidden">
-        <CardHeader className="flex-shrink-0">
-          <CardTitle>创意骂人生成器</CardTitle>
+      <Card className="flex-1 flex flex-col overflow-hidden shadow-lg border-t">
+        <CardHeader className="px-4 py-3 border-b">
+          <CardTitle className="text-xl">创意骂人生成器</CardTitle>
           <CardDescription>
             与AI对话，让它为您生成极具创意的嘲讽内容
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex-1 flex flex-col overflow-hidden">
+        <CardContent className="flex-1 flex flex-col p-4 overflow-hidden">
           {/* 消息历史区域 */}
-          <div className="flex-1 overflow-y-auto mb-4 space-y-4">
+          <div className="flex-1 overflow-y-auto space-y-4">
             {messages.length === 0 ? (
               <div className="text-center text-gray-500 py-8">
                 <p>开始一个新对话吧！</p>
@@ -151,7 +151,7 @@ export default function Home() {
           </div>
           
           {/* 输入区域 */}
-          <div className="mt-auto">
+          <div className="mt-4 border-t pt-4">
             <div className="flex gap-2">
               <Textarea
                 placeholder="输入你的消息..."
