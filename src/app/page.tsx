@@ -71,19 +71,28 @@ export default function Home() {
         
         clearTimeout(timeoutId);
         
-        // 尝试解析JSON响应
+        // 根据Content-Type判断响应类型
+        const contentType = response.headers.get('content-type');
         let data;
-        try {
-          data = await response.json();
-        } catch (parseError) {
-          console.error('JSON解析错误:', parseError);
-          // 如果JSON解析失败，尝试获取文本内容
-          const textContent = await response.text();
-          throw new Error(`服务器返回了无效的数据格式: ${textContent.substring(0, 100)}`);
+        let errorText = '';
+        
+        // 如果是JSON类型，尝试解析JSON
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            data = await response.json();
+          } catch (parseError) {
+            console.error('JSON解析错误:', parseError);
+            throw new Error('服务器返回了无效的JSON数据');
+          }
+        } else {
+          // 非JSON响应，直接读取文本
+          errorText = await response.text();
+          console.error('非JSON响应:', errorText);
+          throw new Error(`服务器返回了非JSON数据: ${errorText.substring(0, 100)}...`);
         }
 
         if (!response.ok) {
-          throw new Error(data.error || '请求失败');
+          throw new Error(data?.error || `请求失败 (${response.status})`);
         }
         
         // 更新消息历史，移除加载中的消息，添加实际回复
@@ -179,7 +188,7 @@ export default function Home() {
                     ) : (
                       <div className="whitespace-pre-wrap break-words">
                         {msg.content}
-                        {msg.role === 'assistant' && (
+                        {msg.role === 'assistant' && msg.content && (
                           <div className="mt-2 text-right">
                             <ShareDialog content={msg.content} />
                           </div>
