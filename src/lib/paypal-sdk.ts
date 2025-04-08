@@ -1,5 +1,6 @@
 // PayPal服务端SDK工具函数
 // 使用类型导入语法确保TypeScript能正确识别类型
+// @ts-expect-error - 忽略缺少类型声明的问题，我们已经在 src/types 中提供了自定义声明
 import * as checkoutNodeJssdk from '@paypal/checkout-server-sdk';
 
 // 创建PayPal环境
