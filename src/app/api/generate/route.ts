@@ -1,6 +1,7 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 // 这里应该使用环境变量存储API密钥
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
@@ -92,37 +93,95 @@ export async function POST(request: Request) {
       );
     }
 
+    // 创建一个生成任务记录
+    const { data: generationTask, error: taskError } = await supabase
+      .from('generation_tasks')
+      .insert({
+        user_id: user.id,
+        prompt: prompt,
+        status: 'pending',
+        messages: messages || [{role: 'user', content: prompt}]
+      })
+      .select()
+      .single();
+    
+    if (taskError) {
+      console.error('创建生成任务失败:', taskError);
+      return jsonResponse(
+        { error: '创建生成任务失败', success: false },
+        500
+      );
+    }
+    
+    // 立即返回任务ID给前端，不等待生成完成
+    // 这样可以避免请求超时，客户端将通过轮询获取结果
+    console.log('生成任务已创建，ID:', generationTask.id);
+    
+    // 在后台启动生成过程（不阻塞响应）
+    generateContentInBackground(supabase, generationTask.id, profile.points, user.id, messages || [{role: 'user', content: prompt}])
+      .catch(error => {
+        console.error('后台生成内容失败:', error);
+      });
+    
+    // 立即向客户端返回任务ID
+    return jsonResponse({
+      taskId: generationTask.id,
+      message: '生成请求已接收，请使用提供的任务ID查询结果',
+      success: true
+    });
+    
+  } catch (error: unknown) {
+    console.error('API Error:', error instanceof Error ? error.stack : error);
+    const errorMessage = error instanceof Error ? error.message : '服务器处理请求时出错，请稍后重试';
+    return jsonResponse(
+      { error: errorMessage, success: false },
+      500
+    );
+  }
+}
+
+// 后台生成内容的非阻塞函数
+async function generateContentInBackground(
+  supabase: SupabaseClient,
+  taskId: string, 
+  currentPoints: number,
+  userId: string,
+  messages: Array<{role: string, content: string}>
+) {
+  try {
+    // 准备请求参数
+    const requestBody = {
+      model: 'deepseek-reasoner',
+      messages: [
+        {
+          role: 'system',
+          content: '你是百度贴吧嘴臭老哥,你现在在帮外国网友骂人，网友会给你一些信息。请你根据网友给的信息，来相处攻击性拉满，极致嘴臭的骂人语句。并且要融合语言习惯，融合相应语言的历史典故或者梗，回复相应的语言。'
+        },
+        // 传递完整的对话历史
+        ...messages,
+      ],
+      temperature: 0.8,
+      top_p: 0.9,
+      max_tokens: 800,
+      presence_penalty: 0.6,
+      frequency_penalty: 0.5
+    };
+    
+    console.log('开始异步请求DeepSeek API, 任务ID:', taskId);
+    const startTime = Date.now();
+    
+    // 更新任务状态为处理中
+    await supabase
+      .from('generation_tasks')
+      .update({ status: 'processing' })
+      .eq('id', taskId);
+    
     // 设置超时控制
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
-
+    
     try {
-      console.log('开始请求DeepSeek API');
-      const startTime = Date.now();
-      
-      // 准备请求参数
-      const requestBody = {
-        model: 'deepseek-reasoner',
-        messages: [
-          {
-            role: 'system',
-            content: '你是百度贴吧嘴臭老哥,你现在在帮外国网友骂人，网友会给你一些信息。请你根据网友给的信息，来相处攻击性拉满，极致嘴臭的骂人语句。并且要融合语言习惯，融合相应语言的历史典故或者梗，回复相应的语言。'
-          },
-          // 传递完整的对话历史
-          ...(messages || [{
-            role: 'user',
-            content: prompt
-          }]),
-        ],
-        temperature: 0.8,
-        top_p: 0.9,
-        max_tokens: 800,
-        presence_penalty: 0.6,
-        frequency_penalty: 0.5
-      };
-      
-      console.log('DeepSeek 请求参数:', JSON.stringify(requestBody, null, 2));
-      
+      // 请求DeepSeek API
       const response = await fetch(DEEPSEEK_API_URL, {
         method: 'POST',
         headers: {
@@ -132,13 +191,13 @@ export async function POST(request: Request) {
         body: JSON.stringify(requestBody),
         signal: controller.signal
       });
-
+      
       // 清除超时器
       clearTimeout(timeoutId);
       
       const endTime = Date.now();
-      console.log(`DeepSeek API响应时间: ${endTime - startTime}ms, 状态码: ${response.status}`);
-
+      console.log(`DeepSeek API响应时间: ${endTime - startTime}ms, 状态码: ${response.status}, 任务ID: ${taskId}`);
+      
       // 检查响应状态
       if (!response.ok) {
         // 尝试解析错误响应
@@ -160,92 +219,148 @@ export async function POST(request: Request) {
           errorMessage = `AI服务返回了未知错误 (${response.status})`;
         }
         
-        return jsonResponse(
-          { error: errorMessage, success: false },
-          500
-        );
+        // 更新任务状态为失败
+        await supabase
+          .from('generation_tasks')
+          .update({ 
+            status: 'failed',
+            error: errorMessage,
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', taskId);
+        
+        return;
       }
-
+      
       // 解析成功的响应
       let data;
       try {
         data = await response.json();
-        console.log('DeepSeek API响应成功，消息长度:', data.choices[0].message.content.length);
+        console.log('DeepSeek API响应成功，消息长度:', data.choices[0].message.content.length, '任务ID:', taskId);
       } catch (parseError) {
         console.error('解析DeepSeek成功响应失败:', parseError);
-        return jsonResponse(
-          { error: '无法解析AI服务响应', success: false },
-          500
-        );
+        
+        // 更新任务状态为失败
+        await supabase
+          .from('generation_tasks')
+          .update({ 
+            status: 'failed',
+            error: '无法解析AI服务响应',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', taskId);
+        
+        return;
       }
       
       const generatedText = data.choices[0].message.content;
-
+      
       // 生成内容的审核
       if (!moderateContent(generatedText)) {
-        return jsonResponse(
-          { error: '生成的内容不符合社区规范，请重试。', success: false },
-          400
-        );
+        // 更新任务状态为审核失败
+        await supabase
+          .from('generation_tasks')
+          .update({ 
+            status: 'failed',
+            error: '生成的内容不符合社区规范',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', taskId);
+        
+        return;
       }
       
-      console.log('开始数据库事务处理');
+      console.log('开始数据库事务处理, 任务ID:', taskId);
       // 使用事务函数处理积分扣除、交易记录和生成记录
       const { data: generationResult, error: generationError } = await supabase
         .rpc('handle_content_generation', {
-          p_user_id: user.id,
-          p_target: prompt,
+          p_user_id: userId,
+          p_target: messages[messages.length - 1].content,
           p_result: generatedText,
           p_points_consumed: 10
         });
       
       if (generationError) {
         console.error('Error in content generation transaction:', generationError);
-        return jsonResponse(
-          { error: '处理生成内容失败', success: false },
-          500
-        );
+        
+        // 更新任务状态为失败
+        await supabase
+          .from('generation_tasks')
+          .update({ 
+            status: 'failed',
+            error: '处理生成内容失败',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', taskId);
+        
+        return;
       }
       
       // 检查事务处理结果
       if (!generationResult.success) {
-        return jsonResponse(
-          { error: generationResult.error || '处理生成内容失败', success: false },
-          403
-        );
+        // 更新任务状态为失败
+        await supabase
+          .from('generation_tasks')
+          .update({ 
+            status: 'failed',
+            error: generationResult.error || '处理生成内容失败',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', taskId);
+        
+        return;
       }
-
-      // 计算更新后的积分值
-      const updatedPoints = profile.points - 10;
-      console.log('内容生成成功，用户新积分:', updatedPoints);
       
-      return jsonResponse({ 
-        result: generatedText,
-        points: updatedPoints,
-        success: true 
-      });
+      // 更新任务状态为完成
+      const updatedPoints = currentPoints - 10;
+      console.log('内容生成成功，用户新积分:', updatedPoints, '任务ID:', taskId);
+      
+      await supabase
+        .from('generation_tasks')
+        .update({ 
+          status: 'completed',
+          result: generatedText,
+          points_consumed: 10,
+          remaining_points: updatedPoints,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', taskId);
+      
     } catch (error: unknown) {
       // 清除超时器
       clearTimeout(timeoutId);
       
       // 处理超时错误
       if (error instanceof Error && error.name === 'AbortError') {
-        console.error('API call timed out after', API_TIMEOUT, 'ms');
-        return jsonResponse(
-          { error: 'AI服务响应超时，请稍后重试', success: false },
-          504
-        );
+        console.error('API call timed out after', API_TIMEOUT, 'ms, 任务ID:', taskId);
+        
+        // 更新任务状态为超时
+        await supabase
+          .from('generation_tasks')
+          .update({ 
+            status: 'failed',
+            error: 'AI服务响应超时，请稍后重试',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', taskId);
+        
+        return;
       }
       
-      // 重新抛出其他错误
-      throw error;
+      // 处理其他错误
+      console.error('生成过程出错, 任务ID:', taskId, error);
+      
+      // 更新任务状态为失败
+      await supabase
+        .from('generation_tasks')
+        .update({ 
+          status: 'failed',
+          error: error instanceof Error ? error.message : '未知错误',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', taskId);
     }
-  } catch (error: unknown) {
-    console.error('API Error:', error instanceof Error ? error.stack : error);
-    const errorMessage = error instanceof Error ? error.message : '服务器处理请求时出错，请稍后重试';
-    return jsonResponse(
-      { error: errorMessage, success: false },
-      500
-    );
+  } catch (error) {
+    console.error('后台生成过程出现未捕获异常:', error);
   }
 }

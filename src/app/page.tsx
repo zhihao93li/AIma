@@ -25,10 +25,136 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { updatePoints } = useAuth();
   
+  // 当前正在轮询的任务ID
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  // 轮询间隔 (毫秒)
+  const POLL_INTERVAL = 2000;
+  
   // 自动滚动到最新消息
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, currentAssistantMessage]);
+
+  // 轮询任务状态
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    
+    if (currentTaskId) {
+      // 启动轮询
+      intervalId = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/generate/status?taskId=${currentTaskId}`);
+          const data = await response.json();
+          
+          if (!response.ok) {
+            // 处理API错误
+            console.error('任务状态查询失败:', data.error);
+            // 如果是404之类的错误，停止轮询
+            if (response.status === 404) {
+              setCurrentTaskId(null);
+              throw new Error('任务不存在');
+            }
+            return;
+          }
+          
+          // 根据任务状态处理
+          switch (data.status) {
+            case 'completed':
+              // 任务完成，展示结果
+              setMessages(prev => {
+                const newMessages = [...prev];
+                // 找到并替换加载中的消息
+                const loadingIndex = newMessages.findIndex(msg => msg.isLoading);
+                if (loadingIndex !== -1) {
+                  newMessages[loadingIndex] = { 
+                    role: 'assistant', 
+                    content: data.result 
+                  };
+                }
+                return newMessages;
+              });
+              
+              // 更新用户积分
+              if (data.points !== undefined) {
+                updatePoints(data.points);
+              }
+              
+              // 停止轮询
+              setCurrentTaskId(null);
+              setIsLoading(false);
+              break;
+              
+            case 'failed':
+              // 任务失败，显示错误信息
+              setMessages(prev => {
+                const newMessages = [...prev];
+                // 找到并替换加载中的消息
+                const loadingIndex = newMessages.findIndex(msg => msg.isLoading);
+                if (loadingIndex !== -1) {
+                  newMessages[loadingIndex] = { 
+                    role: 'assistant', 
+                    content: `抱歉，生成内容时出现错误: ${data.error || '未知错误'}` 
+                  };
+                }
+                return newMessages;
+              });
+              
+              // 显示错误通知
+              toast({
+                title: '生成失败',
+                description: data.error || '抱歉，生成内容时出现错误',
+                variant: 'destructive',
+              });
+              
+              // 停止轮询
+              setCurrentTaskId(null);
+              setIsLoading(false);
+              break;
+              
+            case 'pending':
+            case 'processing':
+              // 任务仍在处理中，继续轮询
+              console.log('任务处理中:', data.status);
+              break;
+              
+            default:
+              console.log('未知任务状态:', data.status);
+          }
+        } catch (error) {
+          console.error('轮询任务状态时出错:', error);
+          // 显示错误通知
+          toast({
+            title: '查询失败',
+            description: error instanceof Error ? error.message : '查询任务状态时出现错误',
+            variant: 'destructive',
+          });
+          
+          // 停止轮询并更新消息
+          setCurrentTaskId(null);
+          setIsLoading(false);
+          
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const loadingIndex = newMessages.findIndex(msg => msg.isLoading);
+            if (loadingIndex !== -1) {
+              newMessages[loadingIndex] = { 
+                role: 'assistant', 
+                content: '抱歉，查询任务状态时出错，请重试。' 
+              };
+            }
+            return newMessages;
+          });
+        }
+      }, POLL_INTERVAL);
+    }
+    
+    // 清理函数
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [currentTaskId, updatePoints]);
 
   // 提交用户消息并获取AI回复
   const handleSubmit = async () => {
@@ -95,16 +221,25 @@ export default function Home() {
           throw new Error(data?.error || `请求失败 (${response.status})`);
         }
         
-        // 更新消息历史，移除加载中的消息，添加实际回复
-        setMessages(prev => {
-          const newMessages = [...prev];
-          newMessages.pop(); // 移除加载中的消息
-          return [...newMessages, { role: 'assistant', content: data.result }];
-        });
-        
-        // 更新用户积分显示
-        if (data.points !== undefined) {
-          updatePoints(data.points);
+        // 判断是否返回了taskId，如果有，则启动轮询
+        if (data.taskId) {
+          console.log('收到任务ID，开始轮询:', data.taskId);
+          setCurrentTaskId(data.taskId);
+        } else {
+          // 如果没有返回taskId但返回了result，则直接更新消息
+          // 这是为了兼容可能的直接返回结果的情况
+          setMessages(prev => {
+            const newMessages = [...prev];
+            newMessages.pop(); // 移除加载中的消息
+            return [...newMessages, { role: 'assistant', content: data.result || '生成完成，但没有返回内容' }];
+          });
+          
+          // 更新用户积分显示
+          if (data.points !== undefined) {
+            updatePoints(data.points);
+          }
+          
+          setIsLoading(false);
         }
       } catch (fetchError: unknown) {
         clearTimeout(timeoutId);
@@ -132,8 +267,9 @@ export default function Home() {
         newMessages.pop(); // 移除加载中的消息
         return [...newMessages, { role: 'assistant', content: '抱歉，生成内容时出现错误，请稍后重试。' }];
       });
-    } finally {
+      
       setIsLoading(false);
+      setCurrentTaskId(null);
     }
   };
 
