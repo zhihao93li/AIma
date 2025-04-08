@@ -1,12 +1,10 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
- // 创建Supabase客户端 - 确保正确使用await cookies()
-    const cookieStore = cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    // 创建Supabase客户端 - 使用新的异步方法
+    const supabase = await createRouteHandlerClient();
     
     // 获取请求体
     const { sharerId } = await request.json();

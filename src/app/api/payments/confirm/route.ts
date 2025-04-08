@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     }
     
     // 获取当前用户
-    const supabase = createRouteClient();
+    const supabase = await createRouteClient();
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session?.user) {

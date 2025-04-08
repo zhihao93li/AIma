@@ -1,14 +1,13 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createRouteHandlerClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 // 使用我们的自定义bundle导入OpenAI SDK
 import { OpenAI } from '@/lib/openai-bundle';
 
 // 这里应该使用环境变量存储API密钥
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
-// DeepSeek API 基础URL
+// DeepSeek API 基础URL - 更新为正确的URL
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
-// 模型名称
+// 模型名称 - 更新为正确的模型名称
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-reasoner';
 
 // 增加超时设置 - 30秒
@@ -45,9 +44,8 @@ export const config = {
 
 export async function POST(request: Request) {
   try {
-    // 创建Supabase客户端 - 确保正确使用await cookies()
-    const cookieStore = cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    // 使用新的Supabase客户端
+    const supabase = await createRouteHandlerClient();
     
     // 获取当前用户
     const { data: { user } } = await supabase.auth.getUser();
@@ -138,10 +136,11 @@ export async function POST(request: Request) {
       success: true
     });
     
-    // 开始处理生成任务，但不等待它完成
-    const processingPromise = (async () => {
+    // 开始处理生成任务，确保异步处理的连续性和错误处理
+    (async () => {
+      console.log('[处理器] 初始化处理任务', generationTask.id);
       try {
-        console.log('开始处理生成任务, ID:', generationTask.id);
+        console.log('[处理器] 开始处理生成任务, ID:', generationTask.id);
         
         // 准备请求参数
         const systemMessage = {
@@ -158,25 +157,72 @@ export async function POST(request: Request) {
           }))
         ];
         
-        console.log('开始请求DeepSeek API, 任务ID:', generationTask.id);
-        console.log('API Key设置状态:', DEEPSEEK_API_KEY ? '已设置' : '未设置');
-        console.log('使用的模型:', DEEPSEEK_MODEL);
-        console.log('请求参数:', JSON.stringify({
+        console.log('[处理器] 准备请求DeepSeek API, 任务ID:', generationTask.id);
+        console.log('[处理器] API Key设置状态:', DEEPSEEK_API_KEY ? '已设置' : '未设置', '长度:', DEEPSEEK_API_KEY?.length);
+        console.log('[处理器] 使用的模型:', DEEPSEEK_MODEL);
+        console.log('[处理器] 准备参数:', {
           model: DEEPSEEK_MODEL,
           temperature: 0.8,
           top_p: 0.9,
           max_tokens: 800,
           messages_count: chatMessages.length
-        }));
+        });
+        
+        // 创建一个专门用于更新任务状态的函数
+        const updateTaskStatus = async (status: string, data: {
+          error?: string;
+          result?: string;
+          points_consumed?: number;
+          remaining_points?: number;
+        } = {}) => {
+          // 创建新的Supabase客户端实例
+          const newSupabase = await createRouteHandlerClient();
+          
+          console.log(`[处理器] 更新任务状态为 ${status}, 任务ID: ${generationTask.id}`);
+          try {
+            // 添加等待标志确保更新完成
+            const { error } = await newSupabase
+              .from('generation_tasks')
+              .update({ 
+                status: status,
+                ...data,
+                completed_at: status === 'processing' ? null : new Date().toISOString()
+              })
+              .eq('id', generationTask.id);
+            
+            if (error) {
+              throw error;
+            }
+            
+            // 验证更新是否生效
+            const { data: updatedTask, error: verifyError } = await newSupabase
+              .from('generation_tasks')
+              .select('status')
+              .eq('id', generationTask.id)
+              .single();
+            
+            if (verifyError) {
+              console.error(`[处理器] 验证任务更新失败:`, verifyError);
+            } else if (updatedTask.status !== status) {
+              console.error(`[处理器] 任务状态更新验证失败: 期望 ${status}, 实际 ${updatedTask.status}`);
+            } else {
+              console.log(`[处理器] 任务状态已更新为 ${status} 并已验证`);
+            }
+          } catch (updateError) {
+            console.error(`[处理器] 更新任务状态失败:`, updateError);
+          }
+        };
         
         try {
+          console.log('[处理器] 初始化OpenAI客户端...');
           // 初始化OpenAI客户端，配置为使用DeepSeek API
           const openai = new OpenAI({
             apiKey: DEEPSEEK_API_KEY,
             baseURL: DEEPSEEK_BASE_URL
           });
           
-          console.log('已初始化OpenAI客户端，指向DeepSeek API');
+          console.log('[处理器] 已初始化OpenAI客户端，指向DeepSeek API');
+          console.log('[处理器] 开始调用DeepSeek API...');
           
           // 使用SDK调用聊天完成API
           const completion = await openai.chat.completions.create({
@@ -189,7 +235,7 @@ export async function POST(request: Request) {
             frequency_penalty: 0.5
           });
           
-          console.log('DeepSeek API响应成功, 检查响应结构:', 
+          console.log('[处理器] DeepSeek API响应成功:', 
             JSON.stringify({
               hasChoices: !!completion.choices,
               choicesLength: completion.choices ? completion.choices.length : 0,
@@ -204,96 +250,83 @@ export async function POST(request: Request) {
           
           // 验证响应格式
           if (!completion.choices || !completion.choices.length || !completion.choices[0].message) {
-            console.error('DeepSeek API返回了异常格式:', JSON.stringify(completion));
-            
-            await supabase
-              .from('generation_tasks')
-              .update({ 
-                status: 'failed',
-                error: 'AI服务返回了不符合预期的数据格式',
-                completed_at: new Date().toISOString()
-              })
-              .eq('id', generationTask.id);
-              
+            console.error('[处理器] DeepSeek API返回了异常格式:', JSON.stringify(completion));
+            await updateTaskStatus('failed', {
+              error: 'AI服务返回了不符合预期的数据格式'
+            });
             return;
           }
           
           const generatedText = completion.choices[0].message.content || '';
           
+          console.log('[处理器] 获取到生成的文本, 长度:', generatedText.length);
+          
           // 简单审核生成的内容
           if (!moderateContent(generatedText)) {
-            await supabase
-              .from('generation_tasks')
-              .update({ 
-                status: 'failed',
-                error: '生成的内容不符合社区规范',
-                completed_at: new Date().toISOString()
-              })
-              .eq('id', generationTask.id);
-            
+            console.log('[处理器] 生成的内容不符合社区规范，更新任务状态为失败');
+            await updateTaskStatus('failed', {
+              error: '生成的内容不符合社区规范'
+            });
             return;
           }
           
           // 扣除用户积分
           const updatedPoints = profile.points - 10;
           
+          console.log('[处理器] 更新用户积分, 用户ID:', user.id, '当前积分:', profile.points, '更新后积分:', updatedPoints);
+          
+          // 使用新的Supabase实例处理用户积分更新
+          const newSupabase = await createRouteHandlerClient();
+          
           // 首先更新用户积分
-          const { error: pointsError } = await supabase
+          const { error: pointsError } = await newSupabase
             .from('profiles')
             .update({ points: updatedPoints })
             .eq('id', user.id);
           
           if (pointsError) {
-            console.error('更新用户积分失败:', pointsError);
-            await supabase
-              .from('generation_tasks')
-              .update({ 
-                status: 'failed',
-                error: '更新用户积分失败',
-                completed_at: new Date().toISOString()
-              })
-              .eq('id', generationTask.id);
-            
+            console.error('[处理器] 更新用户积分失败:', pointsError);
+            await updateTaskStatus('failed', {
+              error: '更新用户积分失败'
+            });
             return;
           }
           
           // 记录积分交易
-          const { error: transactionError } = await supabase
+          const { error: transactionError } = await newSupabase
             .from('point_transactions')
             .insert({
               user_id: user.id,
               amount: -10,
               reason: '内容生成',
-              balance: updatedPoints
+              type: 'generation'  // 添加必需的type字段
             });
           
           if (transactionError) {
-            console.error('记录积分交易失败:', transactionError);
+            console.error('[处理器] 记录积分交易失败:', transactionError);
             // 继续处理，不中断任务完成
           }
           
-          // 更新任务状态为完成
-          await supabase
-            .from('generation_tasks')
-            .update({ 
-              status: 'completed',
-              result: generatedText,
-              points_consumed: 10,
-              remaining_points: updatedPoints,
-              completed_at: new Date().toISOString()
-            })
-            .eq('id', generationTask.id);
+          console.log('[处理器] 更新任务状态为已完成');
           
-          console.log('生成任务完成, ID:', generationTask.id);
+          // 更新任务状态为完成
+          await updateTaskStatus('completed', {
+            result: generatedText,
+            points_consumed: 10,
+            remaining_points: updatedPoints
+          });
+          
+          console.log('[处理器] 生成任务完成, ID:', generationTask.id);
           
         } catch (error) {
           // 处理API调用错误
-          console.error('DeepSeek API请求出错:', error);
+          console.error('[处理器] DeepSeek API请求出错:', error);
           
           let errorMessage = '请求AI服务失败';
           
           // 尝试从OpenAI SDK错误中提取更详细的信息
           if (error instanceof Error) {
+            console.error('[处理器] 错误详情:', error.message, error.stack);
             errorMessage = error.message;
             
             // 检查是否包含API密钥错误
@@ -316,19 +349,18 @@ export async function POST(request: Request) {
           }
           
           // 更新任务状态为失败
-          await supabase
-            .from('generation_tasks')
-            .update({ 
-              status: 'failed',
-              error: errorMessage,
-              completed_at: new Date().toISOString()
-            })
-            .eq('id', generationTask.id);
+          await updateTaskStatus('failed', {
+            error: errorMessage
+          });
         }
       } catch (error) {
-        console.error('处理生成任务出错:', error);
+        console.error('[处理器] 处理生成任务出错:', error);
+        
+        // 修复: 更新任务状态为失败
+        const newSupabase = await createRouteHandlerClient();
+        
         // 确保任务状态被更新
-        await supabase
+        await newSupabase
           .from('generation_tasks')
           .update({ 
             status: 'failed',
@@ -337,10 +369,10 @@ export async function POST(request: Request) {
           })
           .eq('id', generationTask.id);
       }
-    })();
-    
-    // 添加 void 语句使用 processingPromise 避免 linter 错误
-    void processingPromise;
+    })().catch(error => {
+      // 捕获顶层异步错误，防止未捕获的异常
+      console.error('[处理器] 未捕获的顶层异步错误:', error);
+    });
     
     // 不等待处理完成，直接返回响应
     return responsePromise;

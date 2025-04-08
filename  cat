@@ -1,0 +1,18 @@
+[1mdiff --git a/next.config.js b/next.config.js[m
+[1mindex a378679..d5d757e 100644[m
+[1m--- a/next.config.js[m
+[1m+++ b/next.config.js[m
+[36m@@ -1,11 +1,8 @@[m
+ /** @type {import('next').NextConfig} */[m
+ const nextConfig = {[m
+   webpack: (config) => {[m
+[31m-    // 强制将openai作为客户端包处理，确保它被正确打包[m
+[31m-    config.resolve.alias = {[m
+[31m-      ...config.resolve.alias,[m
+[31m-      'openai': require.resolve('openai'),[m
+[31m-    };[m
+[32m+[m[32m    // 不再使用require.resolve('openai')，改为只添加优先解析提示[m
+[32m+[m[32m    config.resolve.preferRelative = true;[m
+     [m
+     return config;[m
+   },[m
