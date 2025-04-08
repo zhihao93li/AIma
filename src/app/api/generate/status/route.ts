@@ -84,6 +84,7 @@ export async function GET(request: Request) {
       return jsonResponse({
         status: 'completed',
         result: task.result,
+        points: task.remaining_points,
         success: true
       });
     } else if (task.status === 'failed') {
