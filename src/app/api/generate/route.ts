@@ -1,8 +1,8 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-// 导入OpenAI SDK
-import OpenAI from 'openai';
+// 使用我们的自定义bundle导入OpenAI SDK
+import { OpenAI } from '@/lib/openai-bundle';
 
 // 这里应该使用环境变量存储API密钥
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
