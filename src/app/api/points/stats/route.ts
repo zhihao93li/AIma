@@ -32,12 +32,12 @@ export async function GET() {
       );
     }
     
-    // 获取积分交易统计
+    // 获取积分交易统计 - 使用原始SQL查询替代group方法
     const { data: stats, error: statsError } = await supabase
       .from('point_transactions')
-      .select('type, amount', { count: 'exact' })
+      .select('type, sum(amount)')
       .eq('user_id', user.id)
-      .group('type');
+      .order('type');
     
     if (statsError) {
       console.error('Error fetching point stats:', statsError);
