@@ -45,14 +45,14 @@ export async function POST(request: Request) {
       throw new Error(`支付未完成，当前状态: ${captureResult.status}`);
     }
     
-    // 处理支付并添加积分
+    // 处理支付并添加积分 - 直接传入Supabase客户端，不需要等待，因为已经是解析后的对象
     const payment = await processPayPalPayment({
       orderId: orderID,
       userId: session.user.id,
       pointsToAdd: pointsPackage.points,
       amount: pointsPackage.price,
       currency,
-      supabase, // 传入已创建的supabase客户端
+      // 不要传递supabase参数，让processPayPalPayment内部创建一个新的客户端
     });
     
     // 返回处理结果
