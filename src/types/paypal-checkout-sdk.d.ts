@@ -10,6 +10,7 @@ declare module '@paypal/checkout-server-sdk' {
     
     class PayPalHttpClient {
       constructor(environment: PayPalEnvironment);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       execute<T>(request: any): Promise<{ result: T }>;
     }
   }
@@ -17,6 +18,7 @@ declare module '@paypal/checkout-server-sdk' {
   namespace orders {
     class OrdersCreateRequest {
       prefer(preference: string): void;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       requestBody(body: any): void;
     }
     
