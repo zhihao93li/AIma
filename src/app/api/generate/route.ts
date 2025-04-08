@@ -2,8 +2,6 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 // 导入OpenAI SDK
-// 需要先安装: npm install openai
-// @ts-expect-error - 模块可能未安装
 import OpenAI from 'openai';
 
 // 这里应该使用环境变量存储API密钥
@@ -197,7 +195,9 @@ export async function POST(request: Request) {
               choicesLength: completion.choices ? completion.choices.length : 0,
               hasFirstChoice: completion.choices && completion.choices.length > 0,
               hasMessage: completion.choices && completion.choices.length > 0 && !!completion.choices[0].message,
-              messageContentLength: completion.choices && completion.choices.length > 0 && completion.choices[0].message ? 
+              messageContentLength: completion.choices && 
+                completion.choices.length > 0 && 
+                completion.choices[0]?.message?.content ? 
                 completion.choices[0].message.content.length : 0
             })
           );
