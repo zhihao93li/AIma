@@ -123,10 +123,31 @@ export async function POST(request: Request) {
       console.log('生成任务已创建，ID:', generationTask.id);
       
       // 在后台启动生成过程（不阻塞响应）
-      generateContentInBackground(supabase, generationTask.id, profile.points, user.id, messages || [{role: 'user', content: prompt}])
-        .catch(error => {
+      // 为确保即使在Vercel环境中也能正常工作，将处理函数包装在Promise.resolve().then中
+      Promise.resolve().then(async () => {
+        try {
+          console.log('开始后台处理任务，ID:', generationTask.id);
+          // 立即更新状态为processing
+          await supabase
+            .from('generation_tasks')
+            .update({ status: 'processing' })
+            .eq('id', generationTask.id);
+            
+          await generateContentInBackground(supabase, generationTask.id, profile.points, user.id, messages || [{role: 'user', content: prompt}]);
+          console.log('后台任务处理完成，ID:', generationTask.id);
+        } catch (error) {
           console.error('后台生成内容失败:', error);
-        });
+          // 确保任务状态被更新为失败
+          await supabase
+            .from('generation_tasks')
+            .update({ 
+              status: 'failed',
+              error: error instanceof Error ? error.message : '后台处理失败',
+              completed_at: new Date().toISOString()
+            })
+            .eq('id', generationTask.id);
+        }
+      });
       
       // 立即向客户端返回任务ID
       return jsonResponse({
@@ -182,18 +203,13 @@ async function generateContentInBackground(
     console.log('开始异步请求DeepSeek API, 任务ID:', taskId);
     const startTime = Date.now();
     
-    // 更新任务状态为处理中
-    await supabase
-      .from('generation_tasks')
-      .update({ status: 'processing' })
-      .eq('id', taskId);
-    
     // 设置超时控制
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
     
     try {
       // 请求DeepSeek API
+      console.log('开始请求DeepSeek API, 使用模型:', requestBody.model);
       const response = await fetch(DEEPSEEK_API_URL, {
         method: 'POST',
         headers: {

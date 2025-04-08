@@ -38,11 +38,44 @@ export default function Home() {
   // 轮询任务状态
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
+    let pollingCount = 0;  // 记录轮询次数
+    const MAX_POLLING_COUNT = 60;  // 最大轮询次数 (约2分钟)
     
     if (currentTaskId) {
       // 启动轮询
       intervalId = setInterval(async () => {
         try {
+          pollingCount++;
+          console.log(`轮询任务状态 (${pollingCount}/${MAX_POLLING_COUNT}), 任务ID: ${currentTaskId}`);
+          
+          // 检查是否超过最大轮询次数
+          if (pollingCount >= MAX_POLLING_COUNT) {
+            clearInterval(intervalId);
+            setCurrentTaskId(null);
+            setIsLoading(false);
+            
+            // 更新消息状态
+            setMessages(prev => {
+              const newMessages = [...prev];
+              const loadingIndex = newMessages.findIndex(msg => msg.isLoading);
+              if (loadingIndex !== -1) {
+                newMessages[loadingIndex] = { 
+                  role: 'assistant', 
+                  content: '生成任务超时，请尝试重新提交或稍后再试。' 
+                };
+              }
+              return newMessages;
+            });
+            
+            toast({
+              title: '任务超时',
+              description: '生成任务处理时间过长，请稍后再试',
+              variant: 'destructive',
+            });
+            
+            return;
+          }
+          
           const response = await fetch(`/api/generate/status?taskId=${currentTaskId}`);
           const data = await response.json();
           
@@ -80,6 +113,7 @@ export default function Home() {
               }
               
               // 停止轮询
+              clearInterval(intervalId);
               setCurrentTaskId(null);
               setIsLoading(false);
               break;
@@ -107,14 +141,34 @@ export default function Home() {
               });
               
               // 停止轮询
+              clearInterval(intervalId);
               setCurrentTaskId(null);
               setIsLoading(false);
               break;
               
             case 'pending':
+              console.log('任务处于pending状态，继续轮询');
+              break;
+              
             case 'processing':
               // 任务仍在处理中，继续轮询
-              console.log('任务处理中:', data.status);
+              console.log('任务正在处理中，继续轮询');
+              
+              // 每10次轮询更新一次加载信息，让用户知道还在处理
+              if (pollingCount % 10 === 0) {
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  const loadingIndex = newMessages.findIndex(msg => msg.isLoading);
+                  if (loadingIndex !== -1) {
+                    newMessages[loadingIndex] = { 
+                      role: 'assistant', 
+                      content: `正在生成内容，已等待${Math.floor(pollingCount * POLL_INTERVAL / 1000)}秒...`, 
+                      isLoading: true 
+                    };
+                  }
+                  return newMessages;
+                });
+              }
               break;
               
             default:
@@ -130,6 +184,7 @@ export default function Home() {
           });
           
           // 停止轮询并更新消息
+          clearInterval(intervalId);
           setCurrentTaskId(null);
           setIsLoading(false);
           
@@ -154,7 +209,7 @@ export default function Home() {
         clearInterval(intervalId);
       }
     };
-  }, [currentTaskId, updatePoints]);
+  }, [currentTaskId, updatePoints, POLL_INTERVAL]);
 
   // 提交用户消息并获取AI回复
   const handleSubmit = async () => {
