@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-// 积分套餐类型定义
+// Points package type definition
 interface PointsPackage {
   id: string;
   name: string;
@@ -15,28 +15,28 @@ interface PointsPackage {
   description: string;
 }
 
-// 积分套餐数据
+// Points package data
 const pointsPackages: PointsPackage[] = [
   {
     id: 'basic',
-    name: '基础套餐',
+    name: 'Basic Package',
     points: 100,
     price: 10,
-    description: '适合轻度使用的用户'
+    description: 'Perfect for casual users'
   },
   {
     id: 'standard',
-    name: '标准套餐',
+    name: 'Standard Package',
     points: 300,
     price: 25,
-    description: '最受欢迎的选择，性价比高'
+    description: 'Most popular choice, great value'
   },
   {
     id: 'premium',
-    name: '高级套餐',
+    name: 'Premium Package',
     points: 800,
     price: 50,
-    description: '适合重度使用的用户，超值优惠'
+    description: 'For power users, best savings'
   }
 ];
 
@@ -51,12 +51,12 @@ export default function BuyPointsContent() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   
-  // 处理支付成功
+  // Handle payment success
   const handlePaymentSuccess = useCallback(async (orderId: string, packageId: string) => {
     try {
       setIsProcessing(true);
       
-      // 清除本地存储的订单信息
+      // Clear stored order info
       localStorage.removeItem('pendingOrderId');
       localStorage.removeItem('pendingPackageId');
       
@@ -74,62 +74,62 @@ export default function BuyPointsContent() {
       const result = await response.json();
       
       if (!result.success) {
-        throw new Error(result.error || '处理支付失败');
+        throw new Error(result.error || 'Payment processing failed');
       }
       
-      setSuccess(`支付成功！您获得了${result.data.points}积分`);
+      setSuccess(`Payment successful! You received ${result.data.points} points`);
       setSelectedPackage(null);
       
-      // 3秒后跳转到个人资料页面
+      // Redirect to profile page after 3 seconds
       setTimeout(() => {
         router.push('/profile?tab=points');
       }, 3000);
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : '处理支付时出错';
+      const errorMessage = err instanceof Error ? err.message : 'Error processing payment';
       setError(errorMessage);
     } finally {
       setIsProcessing(false);
     }
   }, [router, setError, setSuccess, setIsProcessing, setSelectedPackage]);
 
-  // 检查URL参数中是否有支付成功的标记
+  // Check for payment success markers in URL
   useEffect(() => {
-    // 检查标准PayPal回调参数
-    const paypalOrderId = searchParams.get('token'); // PayPal在沙盒环境中使用token参数
+    // Check standard PayPal callback params
+    const paypalOrderId = searchParams.get('token'); // PayPal uses token param in sandbox
     const paymentId = searchParams.get('paymentId');
     const payerId = searchParams.get('PayerID');
     
-    // 检查自定义success参数
+    // Check custom success param
     const success = searchParams.get('success');
     const orderId = localStorage.getItem('pendingOrderId');
     const packageId = localStorage.getItem('pendingPackageId');
     
-    console.log('检测到URL参数:', { paypalOrderId, paymentId, payerId, success });
+    console.log('Detected URL params:', { paypalOrderId, paymentId, payerId, success });
     
-    // 如果有PayPal回调参数或success标记，且有订单ID，处理支付结果
+    // If PayPal callback params or success flag present with order ID, process payment
     if (((paypalOrderId || paymentId) && packageId) || (success === 'true' && orderId && packageId)) {
-      // 优先使用PayPal回调的订单ID
+      // Prefer PayPal callback order ID if available
       const finalOrderId = paypalOrderId || orderId;
       const finalPackageId = packageId;
       
       if (finalOrderId && finalPackageId) {
-        console.log('处理支付成功:', { finalOrderId, finalPackageId });
+        console.log('Processing payment success:', { finalOrderId, finalPackageId });
         handlePaymentSuccess(finalOrderId, finalPackageId);
       }
     }
   }, [searchParams, handlePaymentSuccess]);
   
-  // 选择积分套餐
+  // Select points package
   const handleSelectPackage = (pkg: PointsPackage) => {
     setSelectedPackage(pkg);
     setError(null);
     setSuccess(null);
   };
   
-  // 创建PayPal支付链接并跳转
+  // Create PayPal payment link and redirect
   const createPaymentLink = async () => {
     if (!selectedPackage) {
-      setError('请选择一个积分套餐');
+      setError('Please select a points package');
       return;
     }
     
@@ -151,27 +151,27 @@ export default function BuyPointsContent() {
       const result = await response.json();
       
       if (!result.success) {
-        setError(result.error || '创建支付链接失败');
+        setError(result.error || 'Failed to create payment link');
         setIsProcessing(false);
         return;
       }
       
-      // 检查支付链接是否存在
+      // Check if payment link exists
       if (!result.data.paymentLink) {
-        console.error('API返回的数据中没有paymentLink:', result);
-        setError('创建支付链接失败：无效的支付链接');
+        console.error('API response does not contain paymentLink:', result);
+        setError('Failed to create payment link: Invalid payment link');
         setIsProcessing(false);
         return;
       }
       
-      // 存储订单ID，用于支付成功后的处理
+      // Store order ID for processing after payment
       localStorage.setItem('pendingOrderId', result.data.orderId);
       localStorage.setItem('pendingPackageId', selectedPackage.id);
       
-      // 跳转到PayPal支付页面
+      // Redirect to PayPal payment page
       window.location.href = result.data.paymentLink;
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : '创建支付链接时出错';
+      const errorMessage = err instanceof Error ? err.message : 'Error creating payment link';
       setError(errorMessage);
       setIsProcessing(false);
     }
@@ -188,9 +188,9 @@ export default function BuyPointsContent() {
   if (!user || !profile) {
     return (
       <div className="container mx-auto p-4 text-center min-h-[60vh] flex flex-col items-center justify-center">
-        <h1 className="text-2xl font-bold mb-4">未登录</h1>
-        <p className="mb-4">请先登录以购买积分</p>
-        <Button onClick={() => router.push('/auth/login')}>登录</Button>
+        <h1 className="text-2xl font-bold mb-4">Not Logged In</h1>
+        <p className="mb-4">Please log in to purchase points</p>
+        <Button onClick={() => router.push('/auth/login')}>Login</Button>
       </div>
     );
   }
@@ -198,11 +198,11 @@ export default function BuyPointsContent() {
   return (
     <div className="container mx-auto p-4">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6 text-center">购买积分</h1>
+        <h1 className="text-3xl font-bold mb-6 text-center">Buy Points</h1>
         
         {canceled && (
           <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6" role="alert">
-            <p>您取消了支付流程。如果您想继续购买积分，请选择一个套餐。</p>
+            <p>You&apos;ve canceled the payment process. If you want to continue buying points, please select a package.</p>
           </div>
         )}
         
@@ -230,7 +230,7 @@ export default function BuyPointsContent() {
                 <CardDescription>{pkg.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-4xl font-bold mb-2">{pkg.points} <span className="text-lg font-normal">积分</span></div>
+                <div className="text-4xl font-bold mb-2">{pkg.points} <span className="text-lg font-normal">points</span></div>
                 <div className="text-2xl font-semibold">${pkg.price} USD</div>
               </CardContent>
               <CardFooter>
@@ -242,7 +242,7 @@ export default function BuyPointsContent() {
                     handleSelectPackage(pkg);
                   }}
                 >
-                  {selectedPackage?.id === pkg.id ? "已选择" : "选择此套餐"}
+                  {selectedPackage?.id === pkg.id ? "Selected" : "Choose This Package"}
                 </Button>
               </CardFooter>
             </Card>
@@ -253,9 +253,9 @@ export default function BuyPointsContent() {
           <div className="mb-4">
             <div className="font-semibold text-lg mb-2">
               {selectedPackage ? (
-                <>已选择: <span className="text-blue-600">{selectedPackage.name}</span> - {selectedPackage.points}积分 (${selectedPackage.price})</>
+                <>Selected: <span className="text-blue-600">{selectedPackage.name}</span> - {selectedPackage.points} points (${selectedPackage.price})</>
               ) : (
-                <>请选择一个积分套餐</>
+                <>Please select a points package</>
               )}
             </div>
           </div>
@@ -270,15 +270,15 @@ export default function BuyPointsContent() {
               {isProcessing ? (
                 <>
                   <div className="mr-2 w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
-                  处理中...
+                  Processing...
                 </>
               ) : (
-                '使用PayPal支付'
+                'Pay with PayPal'
               )}
             </Button>
             
             <p className="text-sm text-center text-gray-500">
-              点击按钮后将跳转到PayPal支付页面完成付款
+              After clicking, you&apos;ll be redirected to PayPal to complete payment
             </p>
           </div>
         </div>

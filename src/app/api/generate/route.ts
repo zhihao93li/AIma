@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     
     if (!user) {
       return jsonResponse(
-        { error: '未授权，请先登录', success: false },
+        { error: 'Unauthorized, please log in first', success: false },
         401
       );
     }
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     if (profileError) {
       console.error('Error fetching user profile:', profileError);
       return jsonResponse(
-        { error: '获取用户资料失败', success: false },
+        { error: 'Failed to retrieve user profile', success: false },
         500
       );
     }
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     // 检查积分是否足够
     if (profile.points < 10) {
       return jsonResponse(
-        { error: '积分不足，请获取更多积分后再试', success: false },
+        { error: 'Insufficient points, please get more points to continue', success: false },
         403
       );
     }
@@ -89,20 +89,20 @@ export async function POST(request: Request) {
     // 输入内容审核
     if (!moderateContent(prompt)) {
       return jsonResponse(
-        { error: '输入内容包含敏感词，请调整后重试。', success: false },
+        { error: 'Input contains sensitive words, please revise and try again.', success: false },
         400
       );
     }
 
     if (!DEEPSEEK_API_KEY) {
       return jsonResponse(
-        { error: 'API密钥未配置', success: false },
+        { error: 'API key not configured', success: false },
         500
       );
     }
 
     // 创建一个生成任务记录
-    console.log('开始创建生成任务, 用户ID:', user.id);
+    console.log('Starting generation task, user ID:', user.id);
     const { data: generationTask, error: taskError } = await supabase
       .from('generation_tasks')
       .insert({
@@ -115,37 +115,37 @@ export async function POST(request: Request) {
       .single();
     
     if (taskError) {
-      console.error('创建生成任务失败, 详细错误:', taskError);
-      console.error('错误代码:', taskError.code);
-      console.error('错误信息:', taskError.message);
-      console.error('错误详情:', taskError.details);
+      console.error('Failed to create generation task, error details:', taskError);
+      console.error('Error code:', taskError.code);
+      console.error('Error message:', taskError.message);
+      console.error('Error details:', taskError.details);
       return jsonResponse(
-        { error: '创建生成任务失败: ' + taskError.message, success: false },
+        { error: 'Failed to create generation task: ' + taskError.message, success: false },
         500
       );
     }
     
-    console.log('生成任务已创建，ID:', generationTask.id);
+    console.log('Generation task created, ID:', generationTask.id);
     
     // 立即向客户端返回任务ID，让前端开始轮询
     // 但在服务器端继续处理生成任务
     // 这样可以避免请求超时
     const responsePromise = jsonResponse({
       taskId: generationTask.id,
-      message: '生成请求已接收，请使用提供的任务ID查询结果',
+      message: 'Generation request received, please use the provided task ID to query results',
       success: true
     });
     
     // 开始处理生成任务，确保异步处理的连续性和错误处理
     (async () => {
-      console.log('[处理器] 初始化处理任务', generationTask.id);
+      console.log('[Processor] Initializing task processing', generationTask.id);
       try {
-        console.log('[处理器] 开始处理生成任务, ID:', generationTask.id);
+        console.log('[Processor] Starting generation task, ID:', generationTask.id);
         
         // 准备请求参数
         const systemMessage = {
           role: 'system' as const,
-          content: '你是百度贴吧嘴臭老哥,你现在在帮外国网友骂人，网友会给你一些信息。请你根据网友给的信息，来相处攻击性拉满，极致嘴臭的骂人语句。并且要融合语言习惯，融合相应语言的历史典故或者梗，回复相应的语言。'
+          content: 'You are an expert roaster with a flair for creative insults. Help generate a witty, creative roast based on the information provided. Make it sharp, funny, and memorable without being cruel or using slurs.'
         };
         
         // 确保不会有循环引用问题
@@ -157,10 +157,10 @@ export async function POST(request: Request) {
           }))
         ];
         
-        console.log('[处理器] 准备请求DeepSeek API, 任务ID:', generationTask.id);
-        console.log('[处理器] API Key设置状态:', DEEPSEEK_API_KEY ? '已设置' : '未设置', '长度:', DEEPSEEK_API_KEY?.length);
-        console.log('[处理器] 使用的模型:', DEEPSEEK_MODEL);
-        console.log('[处理器] 准备参数:', {
+        console.log('[Processor] Preparing DeepSeek API request, task ID:', generationTask.id);
+        console.log('[Processor] API Key status:', DEEPSEEK_API_KEY ? 'set' : 'not set', 'length:', DEEPSEEK_API_KEY?.length);
+        console.log('[Processor] Using model:', DEEPSEEK_MODEL);
+        console.log('[Processor] Prepare params:', {
           model: DEEPSEEK_MODEL,
           temperature: 0.8,
           top_p: 0.9,
@@ -178,7 +178,7 @@ export async function POST(request: Request) {
           // 创建新的Supabase客户端实例
           const newSupabase = await createRouteHandlerClient();
           
-          console.log(`[处理器] 更新任务状态为 ${status}, 任务ID: ${generationTask.id}`);
+          console.log(`[Processor] Updating task status to ${status}, task ID: ${generationTask.id}`);
           try {
             // 添加等待标志确保更新完成
             const { error } = await newSupabase
@@ -202,27 +202,27 @@ export async function POST(request: Request) {
               .single();
             
             if (verifyError) {
-              console.error(`[处理器] 验证任务更新失败:`, verifyError);
+              console.error(`[Processor] Failed to verify task update:`, verifyError);
             } else if (updatedTask.status !== status) {
-              console.error(`[处理器] 任务状态更新验证失败: 期望 ${status}, 实际 ${updatedTask.status}`);
+              console.error(`[Processor] Task status update verification failed: Expected ${status}, actual ${updatedTask.status}`);
             } else {
-              console.log(`[处理器] 任务状态已更新为 ${status} 并已验证`);
+              console.log(`[Processor] Task status updated to ${status} and verified`);
             }
           } catch (updateError) {
-            console.error(`[处理器] 更新任务状态失败:`, updateError);
+            console.error(`[Processor] Failed to update task status:`, updateError);
           }
         };
         
         try {
-          console.log('[处理器] 初始化OpenAI客户端...');
+          console.log('[Processor] Initializing OpenAI client...');
           // 初始化OpenAI客户端，配置为使用DeepSeek API
           const openai = new OpenAI({
             apiKey: DEEPSEEK_API_KEY,
             baseURL: DEEPSEEK_BASE_URL
           });
           
-          console.log('[处理器] 已初始化OpenAI客户端，指向DeepSeek API');
-          console.log('[处理器] 开始调用DeepSeek API...');
+          console.log('[Processor] OpenAI client initialized, pointing to DeepSeek API');
+          console.log('[Processor] Starting DeepSeek API call...');
           
           // 使用SDK调用聊天完成API
           const completion = await openai.chat.completions.create({
@@ -235,7 +235,7 @@ export async function POST(request: Request) {
             frequency_penalty: 0.5
           });
           
-          console.log('[处理器] DeepSeek API响应成功:', 
+          console.log('[Processor] DeepSeek API response successful:', 
             JSON.stringify({
               hasChoices: !!completion.choices,
               choicesLength: completion.choices ? completion.choices.length : 0,
@@ -250,22 +250,22 @@ export async function POST(request: Request) {
           
           // 验证响应格式
           if (!completion.choices || !completion.choices.length || !completion.choices[0].message) {
-            console.error('[处理器] DeepSeek API返回了异常格式:', JSON.stringify(completion));
+            console.error('[Processor] DeepSeek API returned unexpected format:', JSON.stringify(completion));
             await updateTaskStatus('failed', {
-              error: 'AI服务返回了不符合预期的数据格式'
+              error: 'AI service returned unexpected data format'
             });
             return;
           }
           
           const generatedText = completion.choices[0].message.content || '';
           
-          console.log('[处理器] 获取到生成的文本, 长度:', generatedText.length);
+          console.log('[Processor] Generated text received, length:', generatedText.length);
           
           // 简单审核生成的内容
           if (!moderateContent(generatedText)) {
-            console.log('[处理器] 生成的内容不符合社区规范，更新任务状态为失败');
+            console.log('[Processor] Generated content does not comply with community standards, updating task status to failed');
             await updateTaskStatus('failed', {
-              error: '生成的内容不符合社区规范'
+              error: 'Generated content does not comply with community standards'
             });
             return;
           }
@@ -273,7 +273,7 @@ export async function POST(request: Request) {
           // 扣除用户积分
           const updatedPoints = profile.points - 10;
           
-          console.log('[处理器] 更新用户积分, 用户ID:', user.id, '当前积分:', profile.points, '更新后积分:', updatedPoints);
+          console.log('[Processor] Updating user points, user ID:', user.id, 'current points:', profile.points, 'updated points:', updatedPoints);
           
           // 使用新的Supabase实例处理用户积分更新
           const newSupabase = await createRouteHandlerClient();
@@ -285,9 +285,9 @@ export async function POST(request: Request) {
             .eq('id', user.id);
           
           if (pointsError) {
-            console.error('[处理器] 更新用户积分失败:', pointsError);
+            console.error('[Processor] Failed to update user points:', pointsError);
             await updateTaskStatus('failed', {
-              error: '更新用户积分失败'
+              error: 'Failed to update user points'
             });
             return;
           }
@@ -298,16 +298,16 @@ export async function POST(request: Request) {
             .insert({
               user_id: user.id,
               amount: -10,
-              reason: '内容生成',
+              reason: 'Content generation',
               type: 'generation'  // 添加必需的type字段
             });
           
           if (transactionError) {
-            console.error('[处理器] 记录积分交易失败:', transactionError);
+            console.error('[Processor] Failed to record point transaction:', transactionError);
             // 继续处理，不中断任务完成
           }
           
-          console.log('[处理器] 更新任务状态为已完成');
+          console.log('[Processor] Updating task status to completed');
           
           // 更新任务状态为完成
           await updateTaskStatus('completed', {
@@ -316,17 +316,17 @@ export async function POST(request: Request) {
             remaining_points: updatedPoints
           });
           
-          console.log('[处理器] 生成任务完成, ID:', generationTask.id);
+          console.log('[Processor] Generation task completed, ID:', generationTask.id);
           
         } catch (error) {
           // 处理API调用错误
-          console.error('[处理器] DeepSeek API请求出错:', error);
+          console.error('[Processor] DeepSeek API request error:', error);
           
-          let errorMessage = '请求AI服务失败';
+          let errorMessage = 'Failed to request AI service';
           
           // 尝试从OpenAI SDK错误中提取更详细的信息
           if (error instanceof Error) {
-            console.error('[处理器] 错误详情:', error.message, error.stack);
+            console.error('[Processor] Error details:', error.message, error.stack);
             errorMessage = error.message;
             
             // 检查是否包含API密钥错误
@@ -334,17 +334,17 @@ export async function POST(request: Request) {
                 errorMessage.includes('key') || 
                 errorMessage.includes('token') || 
                 errorMessage.includes('unauthorized')) {
-              errorMessage = 'API密钥验证失败，请检查DEEPSEEK_API_KEY设置';
+              errorMessage = 'API key validation failed, please check DEEPSEEK_API_KEY setting';
             }
             
             // 检查是否是模型错误
             if (errorMessage.includes('model') && errorMessage.includes('not')) {
-              errorMessage = `指定的模型 "${DEEPSEEK_MODEL}" 不存在或不可用`;
+              errorMessage = `The specified model "${DEEPSEEK_MODEL}" does not exist or is unavailable`;
             }
             
             // 检查是否是请求格式错误
             if (errorMessage.includes('param') || errorMessage.includes('field')) {
-              errorMessage = `API请求参数错误: ${errorMessage}`;
+              errorMessage = `API request parameter error: ${errorMessage}`;
             }
           }
           
@@ -354,7 +354,7 @@ export async function POST(request: Request) {
           });
         }
       } catch (error) {
-        console.error('[处理器] 处理生成任务出错:', error);
+        console.error('[Processor] Error processing generation task:', error);
         
         // 修复: 更新任务状态为失败
         const newSupabase = await createRouteHandlerClient();
@@ -364,14 +364,14 @@ export async function POST(request: Request) {
           .from('generation_tasks')
           .update({ 
             status: 'failed',
-            error: error instanceof Error ? error.message : '处理任务失败',
+            error: error instanceof Error ? error.message : 'Task processing failed',
             completed_at: new Date().toISOString()
           })
           .eq('id', generationTask.id);
       }
     })().catch(error => {
       // 捕获顶层异步错误，防止未捕获的异常
-      console.error('[处理器] 未捕获的顶层异步错误:', error);
+      console.error('[Processor] Uncaught top-level async error:', error);
     });
     
     // 不等待处理完成，直接返回响应
@@ -379,7 +379,7 @@ export async function POST(request: Request) {
     
   } catch (error: unknown) {
     console.error('API Error:', error instanceof Error ? error.stack : error);
-    const errorMessage = error instanceof Error ? error.message : '服务器处理请求时出错，请稍后重试';
+    const errorMessage = error instanceof Error ? error.message : 'Server error processing request, please try again later';
     return jsonResponse(
       { error: errorMessage, success: false },
       500

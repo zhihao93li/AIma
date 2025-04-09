@@ -12,18 +12,18 @@ function jsonResponse(data: Record<string, unknown>, status = 200) {
 }
 
 export async function GET(request: Request) {
-  console.log('收到任务状态查询请求');
+  console.log('Received task status query request');
   try {
     // 解析URL以获取任务ID
     const { searchParams } = new URL(request.url);
     const taskId = searchParams.get('taskId');
     
-    console.log('查询的任务ID:', taskId);
+    console.log('Querying task ID:', taskId);
     
     if (!taskId) {
-      console.log('缺少任务ID参数');
+      console.log('Missing task ID parameter');
       return jsonResponse({
-        error: '缺少任务ID参数',
+        error: 'Missing task ID parameter',
         success: false
       }, 400);
     }
@@ -35,22 +35,22 @@ export async function GET(request: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError) {
-      console.error('获取用户信息失败:', authError);
+      console.error('Failed to get user info:', authError);
       return jsonResponse({
-        error: '认证失败: ' + authError.message,
+        error: 'Authentication failed: ' + authError.message,
         success: false
       }, 401);
     }
     
     if (!user) {
-      console.log('未授权的用户尝试查询任务状态');
+      console.log('Unauthorized user attempted to query task status');
       return jsonResponse({
-        error: '未授权，请先登录',
+        error: 'Unauthorized, please log in first',
         success: false
       }, 401);
     }
     
-    console.log('查询任务状态, 用户ID:', user.id, '任务ID:', taskId);
+    console.log('Querying task status, user ID:', user.id, 'task ID:', taskId);
     
     // 查询任务状态
     const { data: task, error } = await supabase
@@ -61,26 +61,26 @@ export async function GET(request: Request) {
       .single();
     
     if (error) {
-      console.error('查询任务时出错:', error);
+      console.error('Error querying task:', error);
       return jsonResponse({
-        error: '查询任务失败: ' + error.message,
+        error: 'Failed to query task: ' + error.message,
         success: false
       }, 500);
     }
     
     if (!task) {
-      console.log('未找到指定的任务');
+      console.log('Task not found');
       return jsonResponse({
-        error: '未找到指定的任务',
+        error: 'Task not found',
         success: false
       }, 404);
     }
     
-    console.log('查询到任务状态:', task.status, '任务ID:', taskId);
+    console.log('Task status found:', task.status, 'task ID:', taskId);
     
     // 根据任务状态返回不同的响应
     if (task.status === 'completed') {
-      console.log('返回已完成的任务结果, 任务ID:', taskId);
+      console.log('Returning completed task result, task ID:', taskId);
       return jsonResponse({
         status: 'completed',
         result: task.result,
@@ -88,38 +88,38 @@ export async function GET(request: Request) {
         success: true
       });
     } else if (task.status === 'failed') {
-      console.log('返回失败的任务状态, 任务ID:', taskId, '错误:', task.error);
+      console.log('Returning failed task status, task ID:', taskId, 'error:', task.error);
       return jsonResponse({
         status: 'failed',
-        error: task.error || '任务处理失败',
+        error: task.error || 'Task processing failed',
         success: false
       });
     } else if (task.status === 'pending') {
-      console.log('返回等待中的任务状态: pending');
+      console.log('Returning pending task status: pending');
       return jsonResponse({
         status: 'pending',
-        message: '任务正在等待处理',
+        message: 'Task is waiting to be processed',
         success: true
       });
     } else if (task.status === 'processing') {
-      console.log('返回处理中的任务状态: processing');
+      console.log('Returning processing task status: processing');
       return jsonResponse({
         status: 'processing',
-        message: '任务正在处理中',
+        message: 'Task is being processed',
         success: true
       });
     } else {
       // 未知状态
-      console.log('返回未知的任务状态:', task.status);
+      console.log('Returning unknown task status:', task.status);
       return jsonResponse({
         status: task.status,
-        message: '任务状态未知',
+        message: 'Unknown task status',
         success: false
       }, 500);
     }
   } catch (error: unknown) {
-    console.error('查询任务状态API错误:', error instanceof Error ? error.stack : error);
-    const errorMessage = error instanceof Error ? error.message : '服务器处理请求时出错';
+    console.error('Task status API error:', error instanceof Error ? error.stack : error);
+    const errorMessage = error instanceof Error ? error.message : 'Server error processing request';
     return jsonResponse(
       { error: errorMessage, success: false },
       500

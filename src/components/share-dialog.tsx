@@ -16,64 +16,64 @@ export function ShareDialog({ content, onShare }: ShareDialogProps) {
   const [shareUrl, setShareUrl] = useState<string>('');
   const [isOpen, setIsOpen] = useState(false);
   
-  // 获取分享链接
+  // Get share link
   const getShareLink = async () => {
     try {
       const response = await fetch('/api/share/stats');
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || '获取分享链接失败');
+        throw new Error(data.error || 'Failed to get share link');
       }
       
-      // 构建带有内容预览的分享链接
+      // Build share link with content preview
       const baseUrl = data.data.shareLink;
-      // 截取内容前30个字符作为预览
+      // Take first 30 characters for preview
       const preview = encodeURIComponent(content.substring(0, 30) + (content.length > 30 ? '...' : ''));
       setShareUrl(`${baseUrl}&preview=${preview}`);
     } catch (error) {
       console.error('Error fetching share link:', error);
       toast({
-        title: '获取分享链接失败',
-        description: '请稍后重试',
+        title: 'Failed to get share link',
+        description: 'Please try again later',
         variant: 'destructive',
       });
     }
   };
   
-  // 复制分享链接
+  // Copy share link
   const copyShareLink = () => {
     if (!shareUrl) return;
     
     navigator.clipboard.writeText(shareUrl)
       .then(() => {
         toast({
-          title: '复制成功',
-          description: '分享链接已复制到剪贴板',
+          title: 'Copied successfully',
+          description: 'Share link copied to clipboard',
         });
         if (onShare) onShare();
       })
       .catch((err) => {
         console.error('Failed to copy:', err);
         toast({
-          title: '复制失败',
-          description: '请手动复制链接',
+          title: 'Copy failed',
+          description: 'Please copy the link manually',
           variant: 'destructive',
         });
       });
   };
   
-  // 分享到Twitter
+  // Share to Twitter
   const shareToTwitter = () => {
     if (!shareUrl) return;
     
-    const text = encodeURIComponent('看看我用AI生成的创意骂人内容！');
+    const text = encodeURIComponent('Check out this creative roast I generated with AI!');
     const url = encodeURIComponent(shareUrl);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
     if (onShare) onShare();
   };
   
-  // 分享到Facebook
+  // Share to Facebook
   const shareToFacebook = () => {
     if (!shareUrl) return;
     
@@ -82,7 +82,7 @@ export function ShareDialog({ content, onShare }: ShareDialogProps) {
     if (onShare) onShare();
   };
   
-  // 打开对话框时获取分享链接
+  // Get share link when dialog opens
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
     if (open) {
@@ -95,20 +95,20 @@ export function ShareDialog({ content, onShare }: ShareDialogProps) {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <Share className="mr-2" size={16} />
-          分享
+          Share
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>分享内容</DialogTitle>
+          <DialogTitle>Share Content</DialogTitle>
           <DialogDescription>
-            分享这条创意内容，每当有新用户通过您的链接注册，您将获得30积分奖励
+            Share this creative content and earn 30 points each time a new user registers through your link
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4 mt-4">
           <div className="space-y-2">
-            <p className="text-sm font-medium">您的专属分享链接</p>
+            <p className="text-sm font-medium">Your unique share link</p>
             <div className="flex space-x-2">
               <Input 
                 value={shareUrl} 
@@ -117,13 +117,13 @@ export function ShareDialog({ content, onShare }: ShareDialogProps) {
               />
               <Button onClick={copyShareLink}>
                 <Copy size={16} />
-                复制
+                Copy
               </Button>
             </div>
           </div>
           
           <div className="space-y-2">
-            <p className="text-sm font-medium">分享到社交媒体</p>
+            <p className="text-sm font-medium">Share to social media</p>
             <div className="flex space-x-2">
               <Button variant="outline" onClick={shareToTwitter}>
                 <Twitter size={16} />

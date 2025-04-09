@@ -10,7 +10,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from '@/components/ui/use-toast';
 
-// 定义消息类型
+// Define message type
 type Message = {
   role: 'user' | 'assistant';
   content: string;
@@ -25,51 +25,51 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { updatePoints } = useAuth();
   
-  // 当前正在轮询的任务ID
+  // Current task ID being polled
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
-  // 轮询间隔 (毫秒)
+  // Polling interval (milliseconds)
   const POLL_INTERVAL = 2000;
   
-  // 自动滚动到最新消息
+  // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, currentAssistantMessage]);
 
-  // 轮询任务状态
+  // Poll for task status
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
-    let pollingCount = 0;  // 记录轮询次数
-    const MAX_POLLING_COUNT = 60;  // 最大轮询次数 (约2分钟)
+    let pollingCount = 0;  // Track polling count
+    const MAX_POLLING_COUNT = 60;  // Max polling attempts (about 2 minutes)
     
     if (currentTaskId) {
-      // 启动轮询
+      // Start polling
       intervalId = setInterval(async () => {
         try {
           pollingCount++;
-          console.log(`轮询任务状态 (${pollingCount}/${MAX_POLLING_COUNT}), 任务ID: ${currentTaskId}`);
+          console.log(`Polling task status (${pollingCount}/${MAX_POLLING_COUNT}), Task ID: ${currentTaskId}`);
           
-          // 检查是否超过最大轮询次数
+          // Check if exceeded maximum polling count
           if (pollingCount >= MAX_POLLING_COUNT) {
             clearInterval(intervalId);
             setCurrentTaskId(null);
             setIsLoading(false);
             
-            // 更新消息状态
+            // Update message status
             setMessages(prev => {
               const newMessages = [...prev];
               const loadingIndex = newMessages.findIndex(msg => msg.isLoading);
               if (loadingIndex !== -1) {
                 newMessages[loadingIndex] = { 
                   role: 'assistant', 
-                  content: '生成任务超时，请尝试重新提交或稍后再试。' 
+                  content: 'Task timed out. Please try again later.' 
                 };
               }
               return newMessages;
             });
             
             toast({
-              title: '任务超时',
-              description: '生成任务处理时间过长，请稍后再试',
+              title: 'Task Timeout',
+              description: 'Generation task is taking too long. Please try again later.',
               variant: 'destructive',
             });
             
@@ -80,23 +80,23 @@ export default function Home() {
           const data = await response.json();
           
           if (!response.ok) {
-            // 处理API错误
-            console.error('任务状态查询失败:', data.error);
-            // 如果是404之类的错误，停止轮询
+            // Handle API errors
+            console.error('Task status query failed:', data.error);
+            // If 404 or similar, stop polling
             if (response.status === 404) {
               setCurrentTaskId(null);
-              throw new Error('任务不存在');
+              throw new Error('Task does not exist');
             }
             return;
           }
           
-          // 根据任务状态处理
+          // Process based on task status
           switch (data.status) {
             case 'completed':
-              // 任务完成，展示结果
+              // Task completed, display result
               setMessages(prev => {
                 const newMessages = [...prev];
-                // 找到并替换加载中的消息
+                // Find and replace loading message
                 const loadingIndex = newMessages.findIndex(msg => msg.isLoading);
                 if (loadingIndex !== -1) {
                   newMessages[loadingIndex] = { 
@@ -107,54 +107,54 @@ export default function Home() {
                 return newMessages;
               });
               
-              // 更新用户积分
+              // Update user points
               if (data.points !== undefined) {
                 updatePoints(data.points);
               }
               
-              // 停止轮询
+              // Stop polling
               clearInterval(intervalId);
               setCurrentTaskId(null);
               setIsLoading(false);
               break;
               
             case 'failed':
-              // 任务失败，显示错误信息
+              // Task failed, show error message
               setMessages(prev => {
                 const newMessages = [...prev];
-                // 找到并替换加载中的消息
+                // Find and replace loading message
                 const loadingIndex = newMessages.findIndex(msg => msg.isLoading);
                 if (loadingIndex !== -1) {
                   newMessages[loadingIndex] = { 
                     role: 'assistant', 
-                    content: `抱歉，生成内容时出现错误: ${data.error || '未知错误'}` 
+                    content: `Sorry, an error occurred during generation: ${data.error || 'Unknown error'}` 
                   };
                 }
                 return newMessages;
               });
               
-              // 显示错误通知
+              // Show error notification
               toast({
-                title: '生成失败',
-                description: data.error || '抱歉，生成内容时出现错误',
+                title: 'Generation Failed',
+                description: data.error || 'Sorry, an error occurred during content generation',
                 variant: 'destructive',
               });
               
-              // 停止轮询
+              // Stop polling
               clearInterval(intervalId);
               setCurrentTaskId(null);
               setIsLoading(false);
               break;
               
             case 'pending':
-              console.log('任务处于pending状态，继续轮询');
+              console.log('Task is pending, continue polling');
               break;
               
             case 'processing':
-              // 任务仍在处理中，继续轮询
-              console.log('任务正在处理中，继续轮询');
+              // Task still processing, continue polling
+              console.log('Task is processing, continue polling');
               
-              // 每10次轮询更新一次加载信息，让用户知道还在处理
+              // Update loading message every 10 polls to let user know it's still processing
               if (pollingCount % 10 === 0) {
                 setMessages(prev => {
                   const newMessages = [...prev];
@@ -162,7 +162,7 @@ export default function Home() {
                   if (loadingIndex !== -1) {
                     newMessages[loadingIndex] = { 
                       role: 'assistant', 
-                      content: `正在生成内容，已等待${Math.floor(pollingCount * POLL_INTERVAL / 1000)}秒...`, 
+                      content: `Generating content, waited ${Math.floor(pollingCount * POLL_INTERVAL / 1000)} seconds...`, 
                       isLoading: true 
                     };
                   }
@@ -172,18 +172,18 @@ export default function Home() {
               break;
               
             default:
-              console.log('未知任务状态:', data.status);
+              console.log('Unknown task status:', data.status);
           }
         } catch (error) {
-          console.error('轮询任务状态时出错:', error);
-          // 显示错误通知
+          console.error('Error polling task status:', error);
+          // Show error notification
           toast({
-            title: '查询失败',
-            description: error instanceof Error ? error.message : '查询任务状态时出现错误',
+            title: 'Query Failed',
+            description: error instanceof Error ? error.message : 'An error occurred while checking task status',
             variant: 'destructive',
           });
           
-          // 停止轮询并更新消息
+          // Stop polling and update message
           clearInterval(intervalId);
           setCurrentTaskId(null);
           setIsLoading(false);
@@ -194,7 +194,7 @@ export default function Home() {
             if (loadingIndex !== -1) {
               newMessages[loadingIndex] = { 
                 role: 'assistant', 
-                content: '抱歉，查询任务状态时出错，请重试。' 
+                content: 'Sorry, an error occurred while checking task status. Please try again.' 
               };
             }
             return newMessages;
@@ -203,7 +203,7 @@ export default function Home() {
       }, POLL_INTERVAL);
     }
     
-    // 清理函数
+    // Cleanup function
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
@@ -211,30 +211,30 @@ export default function Home() {
     };
   }, [currentTaskId, updatePoints, POLL_INTERVAL]);
 
-  // 提交用户消息并获取AI回复
+  // Submit user message and get AI response
   const handleSubmit = async () => {
     if (!input.trim()) return;
     
-    // 添加用户消息到历史
+    // Add user message to history
     const userMessage: Message = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
     
-    // 添加一个加载中的AI消息
+    // Add a loading AI message
     const loadingMessage: Message = { role: 'assistant', content: '', isLoading: true };
     setMessages(prev => [...prev, loadingMessage]);
     
-    // 清空输入框
+    // Clear input box
     setInput('');
     setIsLoading(true);
     
     try {
-      // 构建完整的对话历史
+      // Build complete conversation history
       const historyMessages = messages.map(msg => ({
         role: msg.role,
         content: msg.content
       }));
       
-      // 添加超时控制
+      // Add timeout control
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
       
@@ -252,44 +252,44 @@ export default function Home() {
         
         clearTimeout(timeoutId);
         
-        // 根据Content-Type判断响应类型
+        // Determine response type by Content-Type
         const contentType = response.headers.get('content-type');
         let data;
         let errorText = '';
         
-        // 如果是JSON类型，尝试解析JSON
+        // If JSON type, try to parse JSON
         if (contentType && contentType.includes('application/json')) {
           try {
             data = await response.json();
           } catch (parseError) {
-            console.error('JSON解析错误:', parseError);
-            throw new Error('服务器返回了无效的JSON数据');
+            console.error('JSON parsing error:', parseError);
+            throw new Error('Server returned invalid JSON data');
           }
         } else {
-          // 非JSON响应，直接读取文本
+          // Non-JSON response, read as text
           errorText = await response.text();
-          console.error('非JSON响应:', errorText);
-          throw new Error(`服务器返回了非JSON数据: ${errorText.substring(0, 100)}...`);
+          console.error('Non-JSON response:', errorText);
+          throw new Error(`Server returned non-JSON data: ${errorText.substring(0, 100)}...`);
         }
 
         if (!response.ok) {
-          throw new Error(data?.error || `请求失败 (${response.status})`);
+          throw new Error(data?.error || `Request failed (${response.status})`);
         }
         
-        // 判断是否返回了taskId，如果有，则启动轮询
+        // Check if taskId was returned, if so, start polling
         if (data.taskId) {
-          console.log('收到任务ID，开始轮询:', data.taskId);
+          console.log('Received task ID, starting polling:', data.taskId);
           setCurrentTaskId(data.taskId);
         } else {
-          // 如果没有返回taskId但返回了result，则直接更新消息
-          // 这是为了兼容可能的直接返回结果的情况
+          // If no taskId but result returned, update messages directly
+          // This is for backward compatibility with direct result returns
           setMessages(prev => {
             const newMessages = [...prev];
-            newMessages.pop(); // 移除加载中的消息
-            return [...newMessages, { role: 'assistant', content: data.result || '生成完成，但没有返回内容' }];
+            newMessages.pop(); // Remove loading message
+            return [...newMessages, { role: 'assistant', content: data.result || 'Generation completed, but no content returned' }];
           });
           
-          // 更新用户积分显示
+          // Update user points display
           if (data.points !== undefined) {
             updatePoints(data.points);
           }
@@ -299,9 +299,9 @@ export default function Home() {
       } catch (fetchError: unknown) {
         clearTimeout(timeoutId);
         
-        // 处理AbortError (超时)
+        // Handle AbortError (timeout)
         if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-          throw new Error('请求超时，请稍后重试');
+          throw new Error('Request timed out, please try again later');
         }
         
         throw fetchError;
@@ -309,18 +309,18 @@ export default function Home() {
     } catch (error: unknown) {
       console.error('Error:', error);
       
-      // 显示错误通知
+      // Show error notification
       toast({
-        title: '生成失败',
-        description: error instanceof Error ? error.message : '抱歉，生成内容时出现错误，请稍后重试',
+        title: 'Generation Failed',
+        description: error instanceof Error ? error.message : 'Sorry, an error occurred during content generation, please try again later',
         variant: 'destructive',
       });
       
-      // 更新消息历史，将加载中的消息替换为错误消息
+      // Update message history, replace loading message with error message
       setMessages(prev => {
         const newMessages = [...prev];
-        newMessages.pop(); // 移除加载中的消息
-        return [...newMessages, { role: 'assistant', content: '抱歉，生成内容时出现错误，请稍后重试。' }];
+        newMessages.pop(); // Remove loading message
+        return [...newMessages, { role: 'assistant', content: 'Sorry, an error occurred during content generation. Please try again later.' }];
       });
       
       setIsLoading(false);
@@ -328,7 +328,7 @@ export default function Home() {
     }
   };
 
-  // 处理按Enter键提交
+  // Handle Enter key submission
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -343,18 +343,18 @@ export default function Home() {
       <Toaster />
       <Card className="flex-1 flex flex-col overflow-hidden shadow-lg border-t">
         <CardHeader className="px-4 py-3 border-b">
-          <CardTitle className="text-xl">创意骂人生成器</CardTitle>
+          <CardTitle className="text-xl">Insults, perfected.</CardTitle>
           <CardDescription>
-            与AI对话，让它为您生成极具创意的嘲讽内容
+            The elegance of Shakespeare. The impact of a mic drop.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex-1 flex flex-col p-4 overflow-hidden">
-          {/* 消息历史区域 */}
+          {/* Message history area */}
           <div className="flex-1 overflow-y-auto space-y-4">
             {messages.length === 0 ? (
               <div className="text-center text-gray-500 py-8">
-                <p>开始一个新对话吧！</p>
-                <p className="text-sm mt-2">提示：描述一下对方做了什么让你不爽的事情...</p>
+                <p>Start a new conversation!</p>
+                <p className="text-sm mt-2">Tip: Describe what the other person did that bothered you...</p>
               </div>
             ) : (
               messages.map((msg, index) => (
@@ -374,7 +374,7 @@ export default function Home() {
                     {msg.isLoading ? (
                       <div className="flex items-center space-x-2">
                         <Spinner size="sm" />
-                        <span>AI正在思考...</span>
+                        <span>AI is thinking...</span>
                       </div>
                     ) : (
                       <div className="whitespace-pre-wrap break-words">
@@ -393,11 +393,11 @@ export default function Home() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* 输入区域 */}
+          {/* Input area */}
           <div className="mt-4 border-t pt-4">
             <div className="flex gap-2">
               <Textarea
-                placeholder="输入你的消息..."
+                placeholder="Type your message..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -409,10 +409,10 @@ export default function Home() {
                 disabled={isLoading || !input.trim()}
                 className="self-end"
               >
-                {isLoading ? <Spinner size="sm" /> : '发送'}
+                {isLoading ? <Spinner size="sm" /> : 'Send'}
               </Button>
             </div>
-            <p className="text-xs text-gray-500 mt-2">提示：按Enter键发送，Shift+Enter换行</p>
+            <p className="text-xs text-gray-500 mt-2">Tip: Press Enter to send, Shift+Enter for new line</p>
           </div>
         </CardContent>
       </Card>
