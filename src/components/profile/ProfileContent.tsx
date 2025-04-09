@@ -25,8 +25,8 @@ export default function ProfileContent() {
   if (!user || !profile) {
     return (
       <div className="container mx-auto p-4 text-center min-h-[60vh] flex flex-col items-center justify-center">
-        <h1 className="text-2xl font-bold mb-4">未登录</h1>
-        <p className="mb-4">请先登录以查看个人资料</p>
+        <h1 className="text-2xl font-bold mb-4">Not Logged In</h1>
+        <p className="mb-4">Please log in to view your profile</p>
       </div>
     );
   }
@@ -35,53 +35,46 @@ export default function ProfileContent() {
     <div className="container mx-auto p-4">
       <Tabs defaultValue={tabParam || "profile"} className="max-w-4xl mx-auto">
         <TabsList className="grid w-full grid-cols-3 mb-8">
-          <TabsTrigger value="profile">个人资料</TabsTrigger>
-          <TabsTrigger value="points">积分历史</TabsTrigger>
-          <TabsTrigger value="share">分享统计</TabsTrigger>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="points">Points History</TabsTrigger>
+          <TabsTrigger value="share">Share Stats</TabsTrigger>
         </TabsList>
         
         <TabsContent value="profile">
           <Card>
             <CardHeader>
-              <CardTitle>个人资料</CardTitle>
-              <CardDescription>查看和管理您的个人信息</CardDescription>
+              <CardTitle>Profile</CardTitle>
+              <CardDescription>View and manage your personal information</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex flex-col items-center space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage src={profile.avatar_url || ''} alt={profile.name || '用户'} />
-                  <AvatarFallback className="text-2xl">{profile.name?.charAt(0) || user.email?.charAt(0) || '用'}</AvatarFallback>
+                  <AvatarImage src={profile.avatar_url || ''} alt={profile.name || 'User'} />
+                  <AvatarFallback className="text-2xl">{profile.name?.charAt(0) || user.email?.charAt(0) || 'U'}</AvatarFallback>
                 </Avatar>
                 <div className="space-y-1 text-center sm:text-left">
-                  <h3 className="text-2xl font-semibold">{profile.name || '未设置昵称'}</h3>
+                  <h3 className="text-2xl font-semibold">{profile.name || 'No Username Set'}</h3>
                   <p className="text-sm text-muted-foreground">{user.email}</p>
                 </div>
               </div>
               
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>用户ID</Label>
-                  <div className="rounded-md bg-muted px-4 py-2 font-mono text-sm">
-                    {user.id}
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>注册时间</Label>
+                  <Label>Registration Date</Label>
                   <div className="rounded-md bg-muted px-4 py-2 text-sm">
-                    {new Date(profile.created_at).toLocaleString('zh-CN')}
+                    {new Date(profile.created_at).toLocaleString('en-US')}
                   </div>
                 </div>
                 
                 <div className="space-y-2">
-                  <Label>最后登录时间</Label>
+                  <Label>Last Login</Label>
                   <div className="rounded-md bg-muted px-4 py-2 text-sm">
-                    {profile.last_sign_in_at ? new Date(profile.last_sign_in_at).toLocaleString('zh-CN') : '未知'}
+                    {profile.last_sign_in_at ? new Date(profile.last_sign_in_at).toLocaleString('en-US') : 'Unknown'}
                   </div>
                 </div>
                 
                 <div className="space-y-2">
-                  <Label>积分</Label>
+                  <Label>Points</Label>
                   <div className="rounded-md bg-muted px-4 py-2 text-sm">
                     {profile.points || 0}
                   </div>

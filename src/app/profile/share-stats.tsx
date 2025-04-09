@@ -19,7 +19,7 @@ export function ShareStats() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 获取分享统计
+  // Fetch share statistics
   const fetchShareStats = async () => {
     setIsLoading(true);
     setError(null);
@@ -29,39 +29,39 @@ export function ShareStats() {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || '获取分享统计失败');
+        throw new Error(data.error || 'Failed to fetch share statistics');
       }
       
       setStats(data.data);
     } catch (error) {
       console.error('Error fetching share stats:', error);
-      setError(error instanceof Error ? error.message : '获取分享统计失败');
+      setError(error instanceof Error ? error.message : 'Failed to fetch share statistics');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 初始加载
+  // Initial load
   useEffect(() => {
     fetchShareStats();
   }, []);
 
-  // 复制分享链接
+  // Copy share link
   const copyShareLink = () => {
     if (!stats?.shareLink) return;
     
     navigator.clipboard.writeText(stats.shareLink)
       .then(() => {
         toast({
-          title: '复制成功',
-          description: '分享链接已复制到剪贴板',
+          title: 'Copied successfully',
+          description: 'Share link copied to clipboard',
         });
       })
       .catch((err) => {
         console.error('Failed to copy:', err);
         toast({
-          title: '复制失败',
-          description: '请手动复制链接',
+          title: 'Copy failed',
+          description: 'Please copy the link manually',
           variant: 'destructive',
         });
       });
@@ -70,8 +70,8 @@ export function ShareStats() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>分享统计</CardTitle>
-        <CardDescription>查看您的分享数据并获取分享链接</CardDescription>
+        <CardTitle>Share Statistics</CardTitle>
+        <CardDescription>View your sharing data and get your share link</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -82,7 +82,7 @@ export function ShareStats() {
           <div className="text-center py-8 text-destructive">
             <p>{error}</p>
             <Button variant="outline" className="mt-4" onClick={fetchShareStats}>
-              重试
+              Retry
             </Button>
           </div>
         ) : stats ? (
@@ -90,20 +90,20 @@ export function ShareStats() {
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-muted rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold">{stats.totalClicks}</p>
-                <p className="text-sm text-muted-foreground">总点击次数</p>
+                <p className="text-sm text-muted-foreground">Total Clicks</p>
               </div>
               <div className="bg-muted rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold">{stats.successfulReferrals}</p>
-                <p className="text-sm text-muted-foreground">成功邀请</p>
+                <p className="text-sm text-muted-foreground">Successful Referrals</p>
               </div>
               <div className="bg-muted rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold text-green-600">+{stats.pointsEarned}</p>
-                <p className="text-sm text-muted-foreground">获得积分</p>
+                <p className="text-sm text-muted-foreground">Points Earned</p>
               </div>
             </div>
             
             <div className="space-y-2">
-              <p className="text-sm font-medium">您的专属分享链接</p>
+              <p className="text-sm font-medium">Your unique share link</p>
               <div className="flex space-x-2">
                 <Input 
                   value={stats.shareLink} 
@@ -111,11 +111,11 @@ export function ShareStats() {
                   className="font-mono text-xs"
                 />
                 <Button onClick={copyShareLink}>
-                  复制
+                  Copy
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                每当有新用户通过您的链接注册，您将获得30积分奖励
+                Earn 30 points every time a new user registers through your link
               </p>
             </div>
           </div>

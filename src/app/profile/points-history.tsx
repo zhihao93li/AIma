@@ -31,7 +31,7 @@ export function PointsHistory() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 获取积分历史
+  // Fetch points history
   const fetchPointsHistory = useCallback(async (page = 1) => {
     setIsLoading(true);
     setError(null);
@@ -41,38 +41,38 @@ export function PointsHistory() {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || '获取积分历史失败');
+        throw new Error(data.error || 'Failed to fetch points history');
       }
       
       setTransactions(data.data);
       setPagination(data.pagination);
     } catch (error) {
       console.error('Error fetching points history:', error);
-      setError(error instanceof Error ? error.message : '获取积分历史失败');
+      setError(error instanceof Error ? error.message : 'Failed to fetch points history');
     } finally {
       setIsLoading(false);
     }
   }, [pagination.pageSize]);
 
-  // 初始加载
+  // Initial load
   useEffect(() => {
     fetchPointsHistory();
   }, [fetchPointsHistory]);
 
-  // 翻页
+  // Page change handler
   const handlePageChange = useCallback((newPage: number) => {
     if (newPage > 0 && newPage <= pagination.totalPages) {
       fetchPointsHistory(newPage);
     }
   }, [pagination.totalPages, fetchPointsHistory]);
 
-  // 获取交易类型的中文名称
+  // Get transaction type name
   const getTransactionTypeName = useCallback((type: string) => {
     const typeMap: Record<string, string> = {
-      'registration': '注册奖励',
-      'generation': '内容生成',
-      'referral': '推荐奖励',
-      'purchase': '购买积分'
+      'registration': 'Registration Bonus',
+      'generation': 'Content Generation',
+      'referral': 'Referral Reward',
+      'purchase': 'Points Purchase'
     };
     return typeMap[type] || type;
   }, []);
@@ -82,14 +82,14 @@ export function PointsHistory() {
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle>积分历史</CardTitle>
-            <CardDescription>查看您的积分变动记录</CardDescription>
+            <CardTitle>Points History</CardTitle>
+            <CardDescription>View your points transaction records</CardDescription>
           </div>
           <Button 
             onClick={() => window.location.href = '/buy-points'}
             className="bg-blue-500 hover:bg-blue-600"
           >
-            购买积分
+            Buy Points
           </Button>
         </div>
       </CardHeader>
@@ -102,12 +102,12 @@ export function PointsHistory() {
           <div className="text-center py-8 text-destructive">
             <p>{error}</p>
             <Button variant="outline" className="mt-4" onClick={() => fetchPointsHistory()}>
-              重试
+              Retry
             </Button>
           </div>
         ) : transactions.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <p>暂无积分记录</p>
+            <p>No points records yet</p>
           </div>
         ) : (
           <>
@@ -118,7 +118,7 @@ export function PointsHistory() {
                     <p className="font-medium">{getTransactionTypeName(transaction.type)}</p>
                     <p className="text-sm text-muted-foreground">{transaction.description}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(transaction.created_at).toLocaleString('zh-CN')}
+                      {new Date(transaction.created_at).toLocaleString('en-US')}
                     </p>
                   </div>
                   <div className={`font-bold ${transaction.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -128,7 +128,7 @@ export function PointsHistory() {
               ))}
             </div>
             
-            {/* 分页控制 */}
+            {/* Pagination controls */}
             {pagination.totalPages > 1 && (
               <div className="flex justify-between items-center mt-6">
                 <Button 
@@ -136,17 +136,17 @@ export function PointsHistory() {
                   onClick={() => handlePageChange(pagination.page - 1)}
                   disabled={pagination.page === 1}
                 >
-                  上一页
+                  Previous
                 </Button>
                 <span className="text-sm">
-                  第 {pagination.page} 页，共 {pagination.totalPages} 页
+                  Page {pagination.page} of {pagination.totalPages}
                 </span>
                 <Button 
                   variant="outline" 
                   onClick={() => handlePageChange(pagination.page + 1)}
                   disabled={pagination.page === pagination.totalPages}
                 >
-                  下一页
+                  Next
                 </Button>
               </div>
             )}
