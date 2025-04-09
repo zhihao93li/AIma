@@ -342,8 +342,8 @@ export default function Home() {
     <div className="flex flex-col h-[calc(100vh-5rem)] max-w-3xl mx-auto px-4">
       <Toaster />
       <Card className="flex-1 flex flex-col overflow-hidden shadow-lg border-t">
-        <CardHeader className="px-4 py-3 border-b">
-          <CardTitle className="text-xl">Insults, perfected.</CardTitle>
+        <CardHeader className="px-4 py-6 border-b">
+          <CardTitle className="text-xl mb-2">Insults, perfected.</CardTitle>
           <CardDescription>
             The elegance of Shakespeare. The impact of a mic drop.
           </CardDescription>
