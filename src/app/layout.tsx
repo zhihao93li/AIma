@@ -7,8 +7,8 @@ import { Navbar } from "@/components/navbar";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "创意骂人生成器",
-  description: "一款帮助用户生成极具创意和嘲讽意味的骂人内容的Web应用",
+  title: "FlameCraft",
+  description: "A web application that helps users generate creative and witty roasts",
 };
 
 export default function RootLayout({
@@ -17,7 +17,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh-CN">
+    <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
           <Navbar />
